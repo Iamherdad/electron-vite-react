@@ -23,6 +23,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
   const [extensionStatus, setExtensionStatus] = useState(
     new Map<string, boolean>(extensions.map((item) => [item.name, false]))
   );
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     window.ipcRenderer.on(
@@ -53,9 +54,11 @@ const AppItem = (props: AppItemProps): JSX.Element => {
         switch (status) {
           case "running":
             setMainProcessStatus(true);
+            setLoading(true);
             break;
           case "closed":
             setMainProcessStatus(false);
+            setLoading(false);
             break;
           default:
             break;
@@ -116,7 +119,11 @@ const AppItem = (props: AppItemProps): JSX.Element => {
         </div>
 
         <div className={styles.button}>
-          <Button type="primary" onClick={(event) => handleClick(event, type)}>
+          <Button
+            type="primary"
+            onClick={(event) => handleClick(event, type)}
+            loading={loading}
+          >
             {type == 1 ? (mainProcessStatus ? "运行中" : "启动") : "安装"}
           </Button>
         </div>
