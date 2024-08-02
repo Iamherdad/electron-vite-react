@@ -1,7 +1,8 @@
 import { Button } from "antd";
 import styles from "./app-item.module.css";
 import Extension, { ExtensionType } from "../extension/Extension";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { M } from "vite/dist/node/types.d-aGj9QkWt";
 
 export interface AppItemProps {
   name: string;
@@ -18,17 +19,49 @@ export interface AppItemProps {
 const AppItem = (props: AppItemProps): JSX.Element => {
   const { name, desc, icon, version, type, extensions, startPath, startType } =
     props;
+  const [mainProcessStatus, setMainProcessStatus] = useState(false);
+  const [extensionStatus, setExtensionStatus] = useState(
+    new Map<string, boolean>(extensions.map((item) => [item.name, false]))
+  );
 
   useEffect(() => {
-    window.ipcRenderer.on("extension-status", (event, { name, status }) => {
-      console.log(`扩展 ${name} is ${status}`);
-    });
+    window.ipcRenderer.on(
+      "extension-status",
+      (event, { mainName, name: extName, status }) => {
+        if (mainName !== name) return;
+
+        console.log(`扩展 ${extName} is ${status}`);
+        switch (status) {
+          case "running":
+            setExtensionStatus(new Map(extensionStatus.set(extName, true)));
+            break;
+          case "closed":
+            setExtensionStatus(new Map(extensionStatus.set(extName, false)));
+            break;
+          default:
+            break;
+        }
+      }
+    );
 
     // 监听主进程发送的主进程状态
-    window.ipcRenderer.on("main-process-status", (event, { status }) => {
-      console.log(`主进程 ${status}`);
-      // 更新UI显示主进程状态
-    });
+    window.ipcRenderer.on(
+      "main-process-status",
+      (event, { name: mainName, status }) => {
+        if (mainName !== name) return;
+        console.log(`主进程 ${name} is ${status}`);
+        switch (status) {
+          case "running":
+            setMainProcessStatus(true);
+            break;
+          case "closed":
+            setMainProcessStatus(false);
+            break;
+          default:
+            break;
+        }
+      }
+    );
   }, []);
 
   const handleClick = (event: React.MouseEvent<HTMLElement>, type?: Number) => {
@@ -47,6 +80,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
         version: item.version,
         startPath: item.startPath,
         startType: item.startType,
+        icon: item.icon,
       };
     });
 
@@ -56,6 +90,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
       startPath,
       startType,
       extensions,
+      icon,
     };
 
     window.ipcRenderer.send("start-app", JSON.stringify(data));
@@ -82,7 +117,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
 
         <div className={styles.button}>
           <Button type="primary" onClick={(event) => handleClick(event, type)}>
-            {type == 1 ? "启动" : "安装"}
+            {type == 1 ? (mainProcessStatus ? "运行中" : "启动") : "安装"}
           </Button>
         </div>
       </div>

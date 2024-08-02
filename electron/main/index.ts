@@ -113,7 +113,7 @@ const getLocalAppConfig = async () => {
 //
 const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   const config = JSON.parse(appConfig);
-  const { name, version, startPath, startType, extensions } = config;
+  const { name, version, startPath, startType, extensions, icon } = config;
 
   let mainWindow: BrowserWindow | null = null;
   let mainProcess: child_process.ChildProcess | null = null;
@@ -128,15 +128,20 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
         contextIsolation: false,
       },
     });
+
     mainWindow.loadURL(`file://${startPath}`);
+    // 通知渲染进程主窗口已打开
+    event.reply("main-process-status", { name: name, status: "running" });
   } else if (startType === "exe") {
     mainProcess = child_process.spawn(startPath);
+    // 通知渲染进程主进程已启动
+    event.reply("main-process-status", { name: name, status: "running" });
     mainProcess.on("exit", () => {
       extensionWindows.forEach((win) => win.close());
       extensionProcesses.forEach((proc) => proc.kill());
       // 通知渲染进程主进程已退出
-      console.log("exit in mian", mainWindow?.webContents);
-      mainWindow?.webContents.send("main-process-status", { status: "exited" });
+
+      event.reply("main-process-status", { name: name, status: "closed" });
     });
   }
 
@@ -146,6 +151,7 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
       startPath: extStartPath,
       startType: extStartType,
       name: extName,
+      icon: extIcon,
     } = extension;
     if (extStartType === "webview") {
       const extWindow = new BrowserWindow({
@@ -163,14 +169,16 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
         }
 
         // 通知渲染进程扩展窗口已关闭
-        mainWindow?.webContents.send("extension-status", {
+        event.reply("extension-status", {
+          mainName: name,
           name: extName,
           status: "closed",
         });
       });
 
       // 通知渲染进程扩展窗口已打开
-      mainWindow?.webContents.send("extension-status", {
+      event.reply("extension-status", {
+        mainName: name,
         name: extName,
         status: "running",
       });
@@ -186,13 +194,15 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
         }
 
         // 通知渲染进程扩展进程已退出
-        mainWindow?.webContents.send("extension-status", {
+        event.reply("extension-status", {
+          mainName: name,
           name: extName,
-          status: "exited",
+          status: "closed",
         });
       });
       // 通知渲染进程扩展进程已启动
-      mainWindow?.webContents.send("extension-status", {
+      event.reply("extension-status", {
+        mainName: name,
         name: extName,
         status: "running",
       });
@@ -205,6 +215,8 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
       extensionWindows.forEach((win) => win.close());
       extensionProcesses.forEach((proc) => proc.kill());
       mainWindow = null;
+      // 通知渲染进程主窗口已关闭
+      event.reply("main-process-status", { name: name, status: "closed" });
     });
   }
 };
