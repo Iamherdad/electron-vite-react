@@ -1,0 +1,52 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  /* border: 1px solid green; */
+  height: 100%;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+  /* margin: 5px 0; */
+}
+
+.body {
+  flex: 1;
+  overflow-y: scroll;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.body::-webkit-scrollbar {
+  width: 0 !important;
+}
+
+.body {
+  -ms-overflow-style: none;
+}
+
+.body {
+  overflow: -moz-scrollbars-none;
+}
+
+.icon {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  margin: 3px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 3px solid #fafafa;
+}
+.icon:hover {
+  transform: scale(1.2);
+}
+
+.icon img {
+  width: 80%;
+  height: 80%;
+}

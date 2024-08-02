@@ -1,0 +1,32 @@
+.main {
+  width: 100vw;
+  height: 100vh;
+  background-color: #e6f1ff;
+  display: flex;
+  flex-direction: column;
+}
+/* .header {
+  background-color: #55aaff;
+  height: 25%;
+  display: flex;
+  flex-direction: column;
+}
+.body {
+  flex: 1;
+} */
+
+.search {
+  height: 8%;
+  /* background-color: red; */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  background-color: #55aaff;
+}
+
+.tabs {
+  flex: 1;
+  overflow-y: scroll;
+  /* background-color: red; */
+}
