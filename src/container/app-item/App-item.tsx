@@ -2,7 +2,6 @@ import { Button } from "antd";
 import styles from "./app-item.module.css";
 import Extension, { ExtensionType } from "../../components/extension/Extension";
 import { useEffect, useState } from "react";
-import { M } from "vite/dist/node/types.d-aGj9QkWt";
 
 export interface AppItemProps {
   name: string;
@@ -73,6 +72,16 @@ const AppItem = (props: AppItemProps): JSX.Element => {
       startApp();
     } else {
       console.log("安装");
+      console.log(
+        name,
+        desc,
+        icon,
+        version,
+        type,
+        extensions,
+        startPath,
+        startType
+      );
     }
   };
 

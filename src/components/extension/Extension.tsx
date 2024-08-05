@@ -42,11 +42,16 @@ const Extension: FC<ExtensionProps> = (props) => {
       <div
         className={styles.restart}
         onClick={() => {
-          window.ipcRenderer.send("restart-extension", {
-            name,
-            startPath,
-            startType,
-          });
+          window.ipcRenderer.send(
+            "restart-extension",
+            JSON.stringify({
+              name,
+              icon,
+              appResource,
+              startPath,
+              startType,
+            })
+          );
         }}
       >
         启动

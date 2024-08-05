@@ -48,6 +48,13 @@ let win: BrowserWindow | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
+//扩展窗口
+let mainWindow: BrowserWindow | null = null;
+let mainProcess: child_process.ChildProcess | null = null;
+const extensionWindows: BrowserWindow[] = [];
+const extensionProcesses: child_process.ChildProcess[] = [];
+let mainName = "";
+
 //处理扩展item
 const processItem = (targetPath: string, item: any): any | null => {
   const { name, startPath, extensions } = item;
@@ -114,11 +121,7 @@ const getLocalAppConfig = async () => {
 const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   const config = JSON.parse(appConfig);
   const { name, version, startPath, startType, extensions, icon } = config;
-
-  let mainWindow: BrowserWindow | null = null;
-  let mainProcess: child_process.ChildProcess | null = null;
-  const extensionWindows: BrowserWindow[] = [];
-  const extensionProcesses: child_process.ChildProcess[] = [];
+  mainName = name;
 
   // 根据 startType 打开不同类型的窗口
   if (startType === "webview") {
@@ -136,9 +139,12 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
     mainProcess = child_process.spawn(startPath);
     // 通知渲染进程主进程已启动
     event.reply("main-process-status", { name: name, status: "running" });
+
     mainProcess.on("exit", () => {
       extensionWindows.forEach((win) => win.close());
       extensionProcesses.forEach((proc) => proc.kill());
+      mainProcess?.kill();
+      mainProcess = null;
       // 通知渲染进程主进程已退出
 
       event.reply("main-process-status", { name: name, status: "closed" });
@@ -178,7 +184,7 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
 
       // 通知渲染进程扩展窗口已打开
       event.reply("extension-status", {
-        mainName: name,
+        mainName: mainName,
         name: extName,
         status: "running",
       });
@@ -215,6 +221,7 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
       extensionWindows.forEach((win) => win.close());
       extensionProcesses.forEach((proc) => proc.kill());
       mainWindow = null;
+      mainName = "";
       // 通知渲染进程主窗口已关闭
       event.reply("main-process-status", { name: name, status: "closed" });
     });
@@ -257,6 +264,16 @@ async function createWindow() {
     if (url.startsWith("https:")) shell.openExternal(url);
     return { action: "deny" };
   });
+  //关闭菜单
+  win.setMenu(null);
+
+  win.on("closed", () => {
+    win = null;
+    mainWindow?.close();
+    mainProcess?.kill();
+    extensionWindows.forEach((win) => win.close());
+    extensionProcesses.forEach((proc) => proc.kill());
+  });
 
   // Auto update
   update(win);
@@ -265,6 +282,7 @@ async function createWindow() {
 app.whenReady().then(createWindow);
 
 app.on("window-all-closed", () => {
+  console.log("window-all-closed");
   win = null;
   if (process.platform !== "darwin") app.quit();
 });
@@ -275,6 +293,11 @@ app.on("second-instance", () => {
     if (win.isMinimized()) win.restore();
     win.focus();
   }
+});
+
+ipcMain.on("colse", (e) => {
+  console.log("close");
+  e.preventDefault();
 });
 
 app.on("activate", () => {
@@ -292,8 +315,67 @@ ipcMain.on("get-app-list", async (event, arg) => {
   event.reply("get-app-list-reply", JSON.stringify(res));
 });
 
-//打开webview
+//启动app
 ipcMain.on("start-app", startApp);
+
+//重启扩展
+ipcMain.on("restart-extension", (event, arg) => {
+  const { name: extName, startPath, startType } = JSON.parse(arg);
+  if (!mainProcess && !mainWindow) return;
+
+  if (startType === "webview") {
+    const childWindow = new BrowserWindow({
+      webPreferences: {
+        preload,
+        nodeIntegration: true,
+        contextIsolation: false,
+      },
+    });
+
+    try {
+      childWindow.loadURL(`file://${startPath}`);
+    } catch (err) {
+      console.error(err);
+    }
+    extensionWindows.push(childWindow);
+    childWindow.on("closed", () => {
+      const index = extensionWindows.indexOf(childWindow);
+      if (index > -1) {
+        extensionWindows.splice(index, 1);
+      }
+      event.reply("extension-status", {
+        mainName: mainName,
+        name: extName,
+        status: "closed",
+      });
+    });
+
+    event.reply("extension-status", {
+      mainName: mainName,
+      name: extName,
+      status: "running",
+    });
+  } else if (startType === "exe") {
+    const childProcess = child_process.spawn(startPath);
+    extensionProcesses.push(childProcess);
+    childProcess.on("exit", () => {
+      const index = extensionProcesses.indexOf(childProcess);
+      if (index > -1) {
+        extensionProcesses.splice(index, 1);
+      }
+      event.reply("extension-status", {
+        mainName: mainName,
+        name: extName,
+        status: "closed",
+      });
+    });
+    event.reply("extension-status", {
+      mainName: mainName,
+      name: extName,
+      status: "running",
+    });
+  }
+});
 
 // New window example arg: new windows url
 ipcMain.handle("open-win", (_, arg) => {
