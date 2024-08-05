@@ -1,6 +1,6 @@
 import { Button } from "antd";
 import styles from "./app-item.module.css";
-import Extension, { ExtensionType } from "../extension/Extension";
+import Extension, { ExtensionType } from "../../components/extension/Extension";
 import { useEffect, useState } from "react";
 import { M } from "vite/dist/node/types.d-aGj9QkWt";
 
@@ -114,8 +114,21 @@ const AppItem = (props: AppItemProps): JSX.Element => {
           <span className={styles.version}>{`v${version}`}</span>
         </div>
         <div className={styles.desc}>{desc}</div>
-        <div className={styles.extension}>
-          <Extension extensions={extensions} />
+        <div className={styles.extensionContainer}>
+          <div className={styles.extensionTitle}>依赖模块:</div>
+          <div className={styles.extensionBody}>
+            {extensions.map((ite: ExtensionType, ind) => {
+              return (
+                <div key={ind} className={styles.extension}>
+                  <Extension
+                    status={extensionStatus.get(ite.name) || false}
+                    mainProcessStatus={mainProcessStatus}
+                    {...ite}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <div className={styles.button}>

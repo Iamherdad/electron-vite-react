@@ -1,0 +1,67 @@
+.container {
+  display: flex;
+  width: 37px;
+  height: 37px;
+  cursor: pointer;
+  margin: 3px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 3px solid #fafafa;
+  position: relative;
+}
+
+/* .container:hover {
+  transform: scale(1.2);
+} */
+
+.container img {
+  width: 80%;
+  height: 80%;
+}
+
+.running {
+  border: 3px solid #00ff00;
+}
+
+.closed {
+  border: 3px solid #ff0000;
+}
+
+.closed:hover .restart {
+  visibility: visible;
+}
+
+.closed:hover .icon {
+  display: none;
+}
+
+/* 为closed添加闪动动画 */
+@keyframes blink {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.closed {
+  animation: blink 1s linear infinite;
+}
+
+.icon {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.restart {
+  position: absolute;
+  visibility: hidden;
+  user-select: none;
+}
