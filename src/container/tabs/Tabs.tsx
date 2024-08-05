@@ -20,6 +20,7 @@ const TabsCom = (): JSX.Element => {
   const [remoteAppData, setRemoteAppData] = React.useState<AppItemProps[]>([]);
 
   useEffect(() => {
+    console.log("组件更新");
     getLocalAppData();
     window.ipcRenderer.on("get-app-list-reply", (event, arg) => {
       setLocalAppData(JSON.parse(arg));
@@ -45,12 +46,22 @@ const TabsCom = (): JSX.Element => {
   };
 
   const getRemoteAppData = async () => {
+    getLocalAppData();
     return await getAppList();
   };
 
   const handleTabChange = async (key: string) => {
     if (key === "2") {
-      const res: any = await getRemoteAppData();
+      //获取本地数据
+      // getLocalAppData();
+      const remoteAppData: any = await getRemoteAppData();
+      const res = remoteAppData.map((remoteItem: any) => {
+        const isInstalled = localAppData.some(
+          (localItem) => localItem.name === remoteItem.name
+        );
+        return { ...remoteItem, isInstall: isInstalled };
+      });
+
       setRemoteAppData(res);
     } else {
       getLocalAppData();

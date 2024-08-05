@@ -12,12 +12,25 @@ export interface AppItemProps {
   appResource: string;
   startPath: string;
   startType: string;
+  isInstall: boolean;
   extensions: ExtensionType[];
 }
 
 const AppItem = (props: AppItemProps): JSX.Element => {
-  const { name, desc, icon, version, type, extensions, startPath, startType } =
-    props;
+  const {
+    name,
+    desc,
+    icon,
+    version,
+    type,
+    extensions,
+    startPath,
+    startType,
+    isInstall,
+    appResource,
+  } = props;
+  // console.log("AppItem", props);
+
   const [mainProcessStatus, setMainProcessStatus] = useState(false);
   const [extensionStatus, setExtensionStatus] = useState(
     new Map<string, boolean>(extensions.map((item) => [item.name, false]))
@@ -72,16 +85,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
       startApp();
     } else {
       console.log("安装");
-      console.log(
-        name,
-        desc,
-        icon,
-        version,
-        type,
-        extensions,
-        startPath,
-        startType
-      );
+      installApp();
     }
   };
 
@@ -108,7 +112,22 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     window.ipcRenderer.send("start-app", JSON.stringify(data));
   };
 
-  const installApp = () => {};
+  const installApp = () => {
+    console.log("installApp", appResource);
+    window.ipcRenderer.send(
+      "install-app",
+      JSON.stringify({
+        name,
+        desc,
+        icon,
+        appResource,
+        startPath,
+        startType,
+        version,
+        extensions,
+      })
+    );
+  };
 
   return (
     <div className={styles.container}>
@@ -141,13 +160,19 @@ const AppItem = (props: AppItemProps): JSX.Element => {
         </div>
 
         <div className={styles.button}>
-          <Button
-            type="primary"
-            onClick={(event) => handleClick(event, type)}
-            loading={loading}
-          >
-            {type == 1 ? (mainProcessStatus ? "运行中" : "启动") : "安装"}
-          </Button>
+          {isInstall ? (
+            <Button type="primary" disabled>
+              已安装
+            </Button>
+          ) : (
+            <Button
+              type="primary"
+              onClick={(event) => handleClick(event, type)}
+              loading={loading}
+            >
+              {type == 1 ? (mainProcessStatus ? "运行中" : "启动") : "安装"}
+            </Button>
+          )}
         </div>
       </div>
     </div>

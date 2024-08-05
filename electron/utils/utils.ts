@@ -4,6 +4,7 @@ import path from "path";
 import * as unzipper from "unzipper";
 
 const downloadAndExtractZip = async (url: string, dest: string) => {
+  console.log("url", url);
   const zipPath = path.join(dest, "downloaded.zip");
 
   // 下载 ZIP 文件
@@ -17,10 +18,11 @@ const downloadAndExtractZip = async (url: string, dest: string) => {
         });
       })
       .on("error", (err) => {
+        console.log(err);
         fs.unlink(zipPath, () => reject(err));
       });
   });
-
+  console.log("222222");
   // 解压 ZIP 文件
   await fs
     .createReadStream(zipPath)

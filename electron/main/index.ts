@@ -6,9 +6,11 @@ import os from "node:os";
 import fs from "node:fs";
 import * as fsExtra from "fs-extra";
 import { update } from "./update";
-// import { downloadAndExtractZip } from "../utils/utils";
+import { downloadAndExtractZip } from "../utils/utils";
 import http from "http";
 import * as child_process from "child_process";
+import axios from "axios";
+import * as unzipper from "unzipper";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -96,22 +98,34 @@ const getLocalAppConfig = async () => {
   const userDataPath = app.getPath("userData");
   console.log("downloadPath", userDataPath);
   const targetPath = path.join(userDataPath, "system", "app");
+
   // 检查并创建 targetPath 目录
   fsExtra.ensureDirSync(targetPath);
   const files = fs.readdirSync(targetPath); // 同步读取目录
   if (!files) {
     return;
   }
+  const confingList = [];
 
-  const confingList = await Promise.all(
-    files.map(async (file) => {
-      const appConfig = fs.readFileSync(
-        path.join(targetPath, file, "config.json"),
-        "utf-8"
-      );
-      return JSON.parse(appConfig);
-    })
-  );
+  for (let i = 0; i < files.length; i++) {
+    //判断是否为文件夹并且是否存在config.json
+    const stat = fs.statSync(path.join(targetPath, files[i]));
+    if (!stat.isDirectory()) {
+      continue;
+    }
+
+    if (!fs.existsSync(path.join(targetPath, files[i], "config.json"))) {
+      continue;
+    }
+
+    const appConfig = fs.readFileSync(
+      path.join(targetPath, files[i], "config.json"),
+      "utf-8"
+    );
+
+    confingList.push(JSON.parse(appConfig));
+  }
+
   const result = confingList
     .map((item: any) => processItem(targetPath, item))
     .filter((item) => item !== null);
@@ -228,6 +242,66 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   }
 };
 
+const installApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
+  const config = JSON.parse(appConfig);
+  const {
+    name,
+    desc,
+    icon,
+    appResource,
+    startPath,
+    startType,
+    version,
+    extensions,
+  } = config;
+  const tempConfig: any = {};
+  const userDataPath = app.getPath("userData");
+  const targetPath = path.join(userDataPath, "system", "app", name);
+  //创建临时下载目录
+  const downloadPath = path.join(userDataPath, "system", "download");
+  try {
+    fsExtra.ensureDirSync(downloadPath);
+    const appResourceFile = await axios.get(appResource, {
+      responseType: "stream",
+    });
+    const appResourcePath = path.join(downloadPath, "resources.zip");
+    appResourceFile.data.pipe(fs.createWriteStream(appResourcePath));
+    // fs.createReadStream(appResourcePath).pipe(
+    //   unzipper.Extract({ path: downloadPath })
+    // );
+    console.log("11111");
+    // unzipper.Extract({ path: downloadPath });
+    console.log("22222");
+    // //下载资源
+    // await downloadAndExtractZip(appResource, downloadPath);
+    // //下载icon并转为base64
+    // const response = await axios.get(icon, { responseType: "arraybuffer" });
+    // const iconBase64 = Buffer.from(response.data, "binary").toString("base64");
+    // tempConfig.icon = iconBase64;
+    // //创建应用目录
+    // await fsExtra.ensureDir(targetPath);
+    // //移动资源
+    // await fsExtra.move(downloadPath, targetPath, { overwrite: true });
+    // //更新配置
+    // tempConfig.name = name;
+    // tempConfig.desc = desc;
+    // tempConfig.appResource = appResource;
+    // tempConfig.startPath = startPath;
+    // tempConfig.startType = startType;
+    // tempConfig.version = version;
+    // console.log("tempConfig", tempConfig);
+    // //写入配置
+    // fs.writeFileSync(
+    //   path.join(targetPath, "config.json"),
+    //   JSON.stringify(tempConfig)
+    // );
+  } catch (err) {
+    console.log("Err", err);
+    //删除下载目录
+    // fsExtra.removeSync(downloadPath);
+  }
+};
+
 async function createWindow() {
   win = new BrowserWindow({
     width: 1500,
@@ -317,6 +391,9 @@ ipcMain.on("get-app-list", async (event, arg) => {
 
 //启动app
 ipcMain.on("start-app", startApp);
+
+//安装app
+ipcMain.on("install-app", installApp);
 
 //重启扩展
 ipcMain.on("restart-extension", (event, arg) => {

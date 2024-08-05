@@ -11,7 +11,6 @@ interface AppListProps {
 
 const AppList: React.FC<AppListProps> = (props) => {
   const { data, type } = props;
-
   return (
     <div className={styles.container}>
       {data.map((item, index) => {
