@@ -258,43 +258,51 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   const userDataPath = app.getPath("userData");
   const targetPath = path.join(userDataPath, "system", "app", name);
   //创建临时下载目录
-  const downloadPath = path.join(userDataPath, "system", "download");
+  const downloadPath = path.join(userDataPath, "system", "download", name);
   try {
-    fsExtra.ensureDirSync(downloadPath);
+    await fsExtra.ensureDir(downloadPath);
+
     const appResourceFile = await axios.get(appResource, {
-      responseType: "stream",
+      responseType: "arraybuffer",
     });
     const appResourcePath = path.join(downloadPath, "resources.zip");
-    appResourceFile.data.pipe(fs.createWriteStream(appResourcePath));
-    // fs.createReadStream(appResourcePath).pipe(
-    //   unzipper.Extract({ path: downloadPath })
-    // );
+
+    await new Promise((resolve, reject) => {
+      const writer = fs.createWriteStream(appResourcePath, {
+        encoding: "binary",
+      });
+      writer.write(Buffer.from(appResourceFile.data), (err) => {
+        if (err) reject(err);
+        else resolve("");
+      });
+      writer.end();
+    });
+
+    await new Promise((resolve, reject) => {
+      fs.createReadStream(appResourcePath)
+        .pipe(unzipper.Extract({ path: downloadPath }))
+        .on("close", resolve)
+        .on("error", reject);
+    });
+
     console.log("11111");
-    // unzipper.Extract({ path: downloadPath });
-    console.log("22222");
-    // //下载资源
-    // await downloadAndExtractZip(appResource, downloadPath);
-    // //下载icon并转为base64
-    // const response = await axios.get(icon, { responseType: "arraybuffer" });
-    // const iconBase64 = Buffer.from(response.data, "binary").toString("base64");
-    // tempConfig.icon = iconBase64;
-    // //创建应用目录
+
+    // 下载icon并转为base64
+    const response = await axios.get(icon, { responseType: "arraybuffer" });
+    const iconBase64 = Buffer.from(response.data, "binary").toString("base64");
+    tempConfig.icon = iconBase64;
+
+    // 创建应用目录
     // await fsExtra.ensureDir(targetPath);
-    // //移动资源
     // await fsExtra.move(downloadPath, targetPath, { overwrite: true });
-    // //更新配置
-    // tempConfig.name = name;
-    // tempConfig.desc = desc;
-    // tempConfig.appResource = appResource;
-    // tempConfig.startPath = startPath;
-    // tempConfig.startType = startType;
-    // tempConfig.version = version;
-    // console.log("tempConfig", tempConfig);
-    // //写入配置
-    // fs.writeFileSync(
-    //   path.join(targetPath, "config.json"),
-    //   JSON.stringify(tempConfig)
-    // );
+
+    // 更新配置
+    tempConfig.name = name;
+    tempConfig.desc = desc;
+    tempConfig.appResource = appResource;
+    tempConfig.startPath = startPath;
+    tempConfig.startType = startType;
+    tempConfig.version = version;
   } catch (err) {
     console.log("Err", err);
     //删除下载目录

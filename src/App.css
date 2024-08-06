@@ -10,3 +10,7 @@
 .ant-tabs-tab-active {
   background-color: #2d8cff !important;
 }
+
+.ant-tabs-content-holder {
+  position: relative;
+}

@@ -1,10 +1,11 @@
 import React, { useEffect } from "react";
+import ReactDOM, { render } from "react-dom";
 import { Tabs } from "antd";
 import type { TabsProps } from "antd";
 import AppList from "../app-list/App-list";
 import { AppItemProps } from "../app-item/App-item";
 import { getAppList } from "../../service/api/app";
-
+import Loading from "@/components/loading/loading";
 const TABS_STYLE: Partial<TabsProps> = {
   tabPosition: "left",
   type: "card" as TabsProps["type"],
@@ -53,18 +54,51 @@ const TabsCom = (): JSX.Element => {
   const handleTabChange = async (key: string) => {
     if (key === "2") {
       //获取本地数据
-      // getLocalAppData();
-      const remoteAppData: any = await getRemoteAppData();
-      const res = remoteAppData.map((remoteItem: any) => {
-        const isInstalled = localAppData.some(
-          (localItem) => localItem.name === remoteItem.name
-        );
-        return { ...remoteItem, isInstall: isInstalled };
-      });
-
-      setRemoteAppData(res);
+      showLoading();
+      try {
+        const remoteAppData: any = await getRemoteAppData();
+        const res = remoteAppData.map((remoteItem: any) => {
+          const isInstalled = localAppData.some(
+            (localItem) => localItem.name === remoteItem.name
+          );
+          return { ...remoteItem, isInstall: isInstalled };
+        });
+        console.log("到这了");
+        setRemoteAppData(res);
+        hideLoading();
+      } catch (e) {
+        console.log(e);
+      }
     } else {
       getLocalAppData();
+    }
+  };
+
+  const showLoading = () => {
+    console.log("showloading");
+    const dom = document.createElement("div");
+    dom.setAttribute("id", "kp-loading");
+    const parentNode = document.querySelector(".ant-tabs-content-holder");
+
+    const parentNodeBgColor = window.getComputedStyle(
+      parentNode as Element
+    ).backgroundColor;
+
+    dom.style.cssText = `position: absolute;width:100%;height:100%; top:0;left: 0; right: 0; bottom: 0; background: ${parentNodeBgColor}; display: flex; align-items: center; justify-content: center; z-index: 9999; font-size: 20px;`;
+    if (parentNode) {
+      parentNode.appendChild(dom);
+      parentNode.appendChild(dom);
+
+      render(<Loading />, dom);
+    }
+  };
+
+  const hideLoading = () => {
+    const dom = document.getElementById("kp-loading");
+    if (dom && dom.parentNode) {
+      {
+        dom.parentNode.removeChild(dom);
+      }
     }
   };
 
@@ -74,6 +108,7 @@ const TabsCom = (): JSX.Element => {
       items={items}
       onChange={(activeKey) => handleTabChange(activeKey)}
       {...TABS_STYLE}
+      tabBarStyle={{ position: "relative" }}
     />
   );
 };
