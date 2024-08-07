@@ -21,7 +21,6 @@ const TabsCom = (): JSX.Element => {
   const [remoteAppData, setRemoteAppData] = React.useState<AppItemProps[]>([]);
 
   useEffect(() => {
-    console.log("组件更新");
     getLocalAppData();
     window.ipcRenderer.on("get-app-list-reply", (event, arg) => {
       setLocalAppData(JSON.parse(arg));
@@ -48,7 +47,11 @@ const TabsCom = (): JSX.Element => {
 
   const getRemoteAppData = async () => {
     getLocalAppData();
-    return await getAppList();
+    return await getAppList({
+      headers: {
+        mountNode: ".ant-tabs-content-holder",
+      },
+    });
   };
 
   const handleTabChange = async (key: string) => {
@@ -58,16 +61,24 @@ const TabsCom = (): JSX.Element => {
       try {
         const remoteAppData: any = await getRemoteAppData();
         const res = remoteAppData.map((remoteItem: any) => {
-          const isInstalled = localAppData.some(
+          const isInstall = localAppData.some(
             (localItem) => localItem.name === remoteItem.name
           );
-          return { ...remoteItem, isInstall: isInstalled };
+
+          const isUpdate = localAppData.some((localItem) => {
+            return (
+              localItem.name === remoteItem.name &&
+              localItem.version !== remoteItem.version
+            );
+          });
+          return { ...remoteItem, isInstall, isUpdate };
         });
-        console.log("到这了");
-        setRemoteAppData(res);
+
         hideLoading();
+        setRemoteAppData(res);
       } catch (e) {
         console.log(e);
+        hideLoading();
       }
     } else {
       getLocalAppData();
@@ -96,6 +107,7 @@ const TabsCom = (): JSX.Element => {
   const hideLoading = () => {
     const dom = document.getElementById("kp-loading");
     if (dom && dom.parentNode) {
+      console.log("hideLoading");
       {
         dom.parentNode.removeChild(dom);
       }

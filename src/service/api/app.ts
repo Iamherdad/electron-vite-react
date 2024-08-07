@@ -1,5 +1,5 @@
 import instance from "../index";
-
-export const getAppList = () => {
-  return instance.get("http://cdn.bilibili.games/index.json");
+import { Server_Headers } from "../index";
+export const getAppList = (config: Server_Headers) => {
+  return instance.get("/", config);
 };

@@ -12,7 +12,8 @@ export interface AppItemProps {
   appResource: string;
   startPath: string;
   startType: string;
-  isInstall: boolean;
+  isInstall?: boolean;
+  isUpdate?: boolean;
   extensions: ExtensionType[];
 }
 
@@ -27,6 +28,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     startPath,
     startType,
     isInstall,
+    isUpdate,
     appResource,
   } = props;
   // console.log("AppItem", props);
@@ -161,9 +163,13 @@ const AppItem = (props: AppItemProps): JSX.Element => {
 
         <div className={styles.button}>
           {isInstall ? (
-            <Button type="primary" disabled>
-              已安装
-            </Button>
+            isUpdate ? (
+              <Button type="primary">更新</Button>
+            ) : (
+              <Button type="primary" disabled>
+                已安装
+              </Button>
+            )
           ) : (
             <Button
               type="primary"
