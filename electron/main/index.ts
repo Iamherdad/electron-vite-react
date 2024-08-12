@@ -6,7 +6,7 @@ import os from "node:os";
 import fs from "node:fs";
 import * as fsExtra from "fs-extra";
 import { update } from "./update";
-import { downloadAndExtractZip } from "../utils/utils";
+import { extractZipFile } from "../utils/utils";
 import http from "http";
 import * as child_process from "child_process";
 import axios from "axios";
@@ -72,23 +72,25 @@ const processItem = (targetPath: string, item: any): any | null => {
     ...item,
     startPath: fullStartPath,
     extensions: extensions
-      .map((extension: any) => {
-        const { name: extName, startPath: extStartPath } = extension;
-        const fullExtStartPath = path.join(
-          basePath,
-          `extensions/${extName}/resources/${extStartPath}`
-        );
+      ? extensions
+      : []
+          .map((extension: any) => {
+            const { name: extName, startPath: extStartPath } = extension;
+            const fullExtStartPath = path.join(
+              basePath,
+              `extensions/${extName}/resources/${extStartPath}`
+            );
 
-        if (!fs.existsSync(fullExtStartPath)) {
-          return null;
-        }
+            if (!fs.existsSync(fullExtStartPath)) {
+              return null;
+            }
 
-        return {
-          ...extension,
-          startPath: fullExtStartPath,
-        };
-      })
-      .filter((ext: any) => ext !== null),
+            return {
+              ...extension,
+              startPath: fullExtStartPath,
+            };
+          })
+          .filter((ext: any) => ext !== null),
   };
 };
 
@@ -96,7 +98,7 @@ const processItem = (targetPath: string, item: any): any | null => {
 const getLocalAppConfig = async () => {
   // 获取用户数据目录
   const userDataPath = app.getPath("userData");
-  console.log("downloadPath", userDataPath);
+  console.log("userDataPath", userDataPath);
   const targetPath = path.join(userDataPath, "system", "app");
 
   // 检查并创建 targetPath 目录
@@ -165,70 +167,6 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
     });
   }
 
-  // 启动扩展
-  // extensions.forEach((extension: any) => {
-  //   const {
-  //     startPath: extStartPath,
-  //     startType: extStartType,
-  //     name: extName,
-  //     icon: extIcon,
-  //   } = extension;
-  //   if (extStartType === "webview") {
-  //     const extWindow = new BrowserWindow({
-  //       webPreferences: {
-  //         nodeIntegration: true,
-  //         contextIsolation: false,
-  //       },
-  //     });
-  //     extWindow.loadURL(`file://${extStartPath}`);
-  //     extensionWindows.push(extWindow);
-  //     extWindow.on("closed", () => {
-  //       const index = extensionWindows.indexOf(extWindow);
-  //       if (index > -1) {
-  //         extensionWindows.splice(index, 1);
-  //       }
-
-  //       // 通知渲染进程扩展窗口已关闭
-  //       event.reply("extension-status", {
-  //         mainName: name,
-  //         name: extName,
-  //         status: "closed",
-  //       });
-  //     });
-
-  //     // 通知渲染进程扩展窗口已打开
-  //     event.reply("extension-status", {
-  //       mainName: mainName,
-  //       name: extName,
-  //       status: "running",
-  //     });
-  //   } else if (extStartType === "exe") {
-  //     const extProcess = child_process.spawn(extStartPath);
-  //     extensionProcesses.push(extProcess);
-  //     extProcess.on("exit", () => {
-  //       const index = extensionProcesses.findIndex(
-  //         (proc: any) => proc.process === extProcess
-  //       );
-  //       if (index > -1) {
-  //         extensionProcesses.splice(index, 1);
-  //       }
-
-  //       // 通知渲染进程扩展进程已退出
-  //       event.reply("extension-status", {
-  //         mainName: name,
-  //         name: extName,
-  //         status: "closed",
-  //       });
-  //     });
-  //     // 通知渲染进程扩展进程已启动
-  //     event.reply("extension-status", {
-  //       mainName: name,
-  //       name: extName,
-  //       status: "running",
-  //     });
-  //   }
-  // });
-
   // 监听主窗口关闭事件，关闭所有扩展窗口或进程
   if (mainWindow) {
     mainWindow.on("closed", () => {
@@ -244,72 +182,107 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
 
 const installApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   const config = JSON.parse(appConfig);
-  const {
-    name,
-    desc,
-    icon,
-    appResource,
-    startPath,
-    startType,
-    version,
-    extensions,
-  } = config;
-  const tempConfig: any = {};
+  const { name, desc, icon, appResource, startPath, startType, version } =
+    config;
   const userDataPath = app.getPath("userData");
   const targetPath = path.join(userDataPath, "system", "app", name);
-  //创建临时下载目录
+  const backupPath = path.join(userDataPath, "system", "backup", name);
   const downloadPath = path.join(userDataPath, "system", "download", name);
+
   try {
+    // 创建临时下载目录
     await fsExtra.ensureDir(downloadPath);
 
+    // 下载
     const appResourceFile = await axios.get(appResource, {
       responseType: "arraybuffer",
     });
-    const appResourcePath = path.join(downloadPath, "resources.zip");
+    const appResourcePath = path.join(downloadPath, "resources");
+
+    await fsExtra.ensureDir(appResourcePath);
 
     await new Promise((resolve, reject) => {
-      const writer = fs.createWriteStream(appResourcePath, {
-        encoding: "binary",
-      });
+      const writer = fs.createWriteStream(
+        path.join(appResourcePath, "resources.zip"),
+        {
+          encoding: "binary",
+        }
+      );
       writer.write(Buffer.from(appResourceFile.data), (err) => {
         if (err) reject(err);
-        else resolve("");
+        else {
+          writer.close(); // 确保文件流已关闭
+          resolve();
+        }
       });
-      writer.end();
     });
+    console.log("download success");
 
-    await new Promise((resolve, reject) => {
-      fs.createReadStream(appResourcePath)
-        .pipe(unzipper.Extract({ path: downloadPath }))
-        .on("close", resolve)
-        .on("error", reject);
+    // 解压
+    await extractZipFile(
+      path.join(appResourcePath, "resources.zip"),
+      appResourcePath
+    );
+    console.log("extract success");
+
+    // 删除下载的压缩包
+    await fs.promises.unlink(path.join(appResourcePath, "resources.zip")); // 使用异步方法删除文件
+    console.log("delete success");
+
+    //将icon链接转换为base64
+    const iconData = await axios.get(icon, {
+      responseType: "arraybuffer",
     });
+    const contentType = iconData.headers["content-type"];
+    const iconBase64 = `data:${contentType};base64,${Buffer.from(
+      iconData.data
+    ).toString("base64")}`;
 
-    console.log("11111");
+    //创建配置文件config.json
+    const config = {
+      name,
+      desc,
+      icon: iconBase64,
+      version,
+      startPath,
+      startType,
+    };
+    await fs.promises.writeFile(
+      path.join(downloadPath, "config.json"),
+      JSON.stringify(config),
+      "utf-8"
+    );
 
-    // 下载icon并转为base64
-    const response = await axios.get(icon, { responseType: "arraybuffer" });
-    const iconBase64 = Buffer.from(response.data, "binary").toString("base64");
-    tempConfig.icon = iconBase64;
+    // 备份原有文件
+    if (fs.existsSync(targetPath)) {
+      await fsExtra.move(targetPath, backupPath);
+    }
 
-    // 创建应用目录
-    // await fsExtra.ensureDir(targetPath);
-    // await fsExtra.move(downloadPath, targetPath, { overwrite: true });
-
-    // 更新配置
-    tempConfig.name = name;
-    tempConfig.desc = desc;
-    tempConfig.appResource = appResource;
-    tempConfig.startPath = startPath;
-    tempConfig.startType = startType;
-    tempConfig.version = version;
-  } catch (err) {
-    console.log("Err", err);
-    //删除下载目录
-    // fsExtra.removeSync(downloadPath);
+    // 移动文件
+    try {
+      await fsExtra.move(downloadPath, targetPath);
+      console.log("install success");
+      // 通知渲染进程安装成功
+      event.reply("install-app-status", { name, status: "success" });
+    } catch (e) {
+      console.log(e);
+      // 通知渲染进程安装失败
+      event.reply("install-app-status", { name, status: "fail" });
+      // 删除下载的文件
+      await fsExtra.remove(downloadPath);
+      // 恢复备份文件
+      if (fs.existsSync(backupPath)) {
+        await fsExtra.move(backupPath, targetPath);
+      }
+    }
+  } catch (error: any) {
+    // 下载失败，删除下载的文件
+    await fsExtra.remove(downloadPath);
+    // 通知渲染进程安装失败
+    event.reply("install-app-status", { name, status: "fail" });
+    console.error("Error during installation:", error);
   }
 };
-
 async function createWindow() {
   win = new BrowserWindow({
     width: 1500,

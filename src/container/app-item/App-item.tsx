@@ -34,30 +34,30 @@ const AppItem = (props: AppItemProps): JSX.Element => {
   // console.log("AppItem", props);
 
   const [mainProcessStatus, setMainProcessStatus] = useState(false);
-  const [extensionStatus, setExtensionStatus] = useState(
-    new Map<string, boolean>(extensions.map((item) => [item.name, false]))
-  );
+  // const [extensionStatus, setExtensionStatus] = useState(
+  //   new Map<string, boolean>(extensions.map((item) => [item.name, false]))
+  // );
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    window.ipcRenderer.on(
-      "extension-status",
-      (event, { mainName, name: extName, status }) => {
-        if (mainName !== name) return;
+    // window.ipcRenderer.on(
+    //   "extension-status",
+    //   (event, { mainName, name: extName, status }) => {
+    //     if (mainName !== name) return;
 
-        console.log(`扩展 ${extName} is ${status}`);
-        switch (status) {
-          case "running":
-            setExtensionStatus(new Map(extensionStatus.set(extName, true)));
-            break;
-          case "closed":
-            setExtensionStatus(new Map(extensionStatus.set(extName, false)));
-            break;
-          default:
-            break;
-        }
-      }
-    );
+    //     console.log(`扩展 ${extName} is ${status}`);
+    //     switch (status) {
+    //       case "running":
+    //         setExtensionStatus(new Map(extensionStatus.set(extName, true)));
+    //         break;
+    //       case "closed":
+    //         setExtensionStatus(new Map(extensionStatus.set(extName, false)));
+    //         break;
+    //       default:
+    //         break;
+    //     }
+    //   }
+    // );
 
     // 监听主进程发送的主进程状态
     window.ipcRenderer.on(
