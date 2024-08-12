@@ -201,21 +201,27 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
 
     await fsExtra.ensureDir(appResourcePath);
 
-    await new Promise((resolve, reject) => {
-      const writer = fs.createWriteStream(
-        path.join(appResourcePath, "resources.zip"),
-        {
-          encoding: "binary",
-        }
-      );
-      writer.write(Buffer.from(appResourceFile.data), (err) => {
-        if (err) reject(err);
-        else {
-          writer.close(); // 确保文件流已关闭
-          resolve();
-        }
-      });
-    });
+    // await new Promise((resolve, reject) => {
+    //   const writer = fs.createWriteStream(
+    //     path.join(appResourcePath, "resources.zip"),
+    //     {
+    //       encoding: "binary",
+    //     }
+    //   );
+    //   writer.write(Buffer.from(appResourceFile.data), (err) => {
+    //     if (err) reject(err);
+    //     else {
+    //       writer.close(); // 确保文件流已关闭
+    //       resolve();
+    //     }
+    //   });
+    // });
+
+    await fs.promises.writeFile(
+      path.join(appResourcePath, "resources.zip"),
+      Buffer.from(appResourceFile.data),
+      { encoding: "binary" }
+    );
     console.log("download success");
 
     // 解压
