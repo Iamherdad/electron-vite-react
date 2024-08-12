@@ -1,6 +1,7 @@
 .container {
   width: 330px;
-  height: 250px;
+  /* height: 250px; */
+  height: 200px;
   background-color: #fff;
   border-radius: 3%;
   /* margin-top: 10px; */
@@ -54,11 +55,11 @@
   font-size: 14px;
   color: #666;
   /* margin: 10px 0; */
-  height: 30%;
+  height: 60%;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
+/* 
 .right .extension {
   height: 30%;
   display: flex;
@@ -90,7 +91,7 @@
   width: 40px;
   height: 40px;
   margin: 0 5px;
-}
+} */
 
 .right .button {
   flex: 1;

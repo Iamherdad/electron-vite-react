@@ -155,8 +155,8 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
     event.reply("main-process-status", { name: name, status: "running" });
 
     mainProcess.on("exit", () => {
-      extensionWindows.forEach((win) => win.close());
-      extensionProcesses.forEach((proc) => proc.kill());
+      // extensionWindows.forEach((win) => win.close());
+      // extensionProcesses.forEach((proc) => proc.kill());
       mainProcess?.kill();
       mainProcess = null;
       // 通知渲染进程主进程已退出
@@ -166,74 +166,74 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   }
 
   // 启动扩展
-  extensions.forEach((extension: any) => {
-    const {
-      startPath: extStartPath,
-      startType: extStartType,
-      name: extName,
-      icon: extIcon,
-    } = extension;
-    if (extStartType === "webview") {
-      const extWindow = new BrowserWindow({
-        webPreferences: {
-          nodeIntegration: true,
-          contextIsolation: false,
-        },
-      });
-      extWindow.loadURL(`file://${extStartPath}`);
-      extensionWindows.push(extWindow);
-      extWindow.on("closed", () => {
-        const index = extensionWindows.indexOf(extWindow);
-        if (index > -1) {
-          extensionWindows.splice(index, 1);
-        }
+  // extensions.forEach((extension: any) => {
+  //   const {
+  //     startPath: extStartPath,
+  //     startType: extStartType,
+  //     name: extName,
+  //     icon: extIcon,
+  //   } = extension;
+  //   if (extStartType === "webview") {
+  //     const extWindow = new BrowserWindow({
+  //       webPreferences: {
+  //         nodeIntegration: true,
+  //         contextIsolation: false,
+  //       },
+  //     });
+  //     extWindow.loadURL(`file://${extStartPath}`);
+  //     extensionWindows.push(extWindow);
+  //     extWindow.on("closed", () => {
+  //       const index = extensionWindows.indexOf(extWindow);
+  //       if (index > -1) {
+  //         extensionWindows.splice(index, 1);
+  //       }
 
-        // 通知渲染进程扩展窗口已关闭
-        event.reply("extension-status", {
-          mainName: name,
-          name: extName,
-          status: "closed",
-        });
-      });
+  //       // 通知渲染进程扩展窗口已关闭
+  //       event.reply("extension-status", {
+  //         mainName: name,
+  //         name: extName,
+  //         status: "closed",
+  //       });
+  //     });
 
-      // 通知渲染进程扩展窗口已打开
-      event.reply("extension-status", {
-        mainName: mainName,
-        name: extName,
-        status: "running",
-      });
-    } else if (extStartType === "exe") {
-      const extProcess = child_process.spawn(extStartPath);
-      extensionProcesses.push(extProcess);
-      extProcess.on("exit", () => {
-        const index = extensionProcesses.findIndex(
-          (proc: any) => proc.process === extProcess
-        );
-        if (index > -1) {
-          extensionProcesses.splice(index, 1);
-        }
+  //     // 通知渲染进程扩展窗口已打开
+  //     event.reply("extension-status", {
+  //       mainName: mainName,
+  //       name: extName,
+  //       status: "running",
+  //     });
+  //   } else if (extStartType === "exe") {
+  //     const extProcess = child_process.spawn(extStartPath);
+  //     extensionProcesses.push(extProcess);
+  //     extProcess.on("exit", () => {
+  //       const index = extensionProcesses.findIndex(
+  //         (proc: any) => proc.process === extProcess
+  //       );
+  //       if (index > -1) {
+  //         extensionProcesses.splice(index, 1);
+  //       }
 
-        // 通知渲染进程扩展进程已退出
-        event.reply("extension-status", {
-          mainName: name,
-          name: extName,
-          status: "closed",
-        });
-      });
-      // 通知渲染进程扩展进程已启动
-      event.reply("extension-status", {
-        mainName: name,
-        name: extName,
-        status: "running",
-      });
-    }
-  });
+  //       // 通知渲染进程扩展进程已退出
+  //       event.reply("extension-status", {
+  //         mainName: name,
+  //         name: extName,
+  //         status: "closed",
+  //       });
+  //     });
+  //     // 通知渲染进程扩展进程已启动
+  //     event.reply("extension-status", {
+  //       mainName: name,
+  //       name: extName,
+  //       status: "running",
+  //     });
+  //   }
+  // });
 
   // 监听主窗口关闭事件，关闭所有扩展窗口或进程
   if (mainWindow) {
     mainWindow.on("closed", () => {
-      extensionWindows.forEach((win) => win.close());
-      extensionProcesses.forEach((proc) => proc.kill());
+      // extensionWindows.forEach((win) => win.close());
+      // extensionProcesses.forEach((proc) => proc.kill());
       mainWindow = null;
       mainName = "";
       // 通知渲染进程主窗口已关闭
@@ -353,8 +353,8 @@ async function createWindow() {
     win = null;
     mainWindow?.close();
     mainProcess?.kill();
-    extensionWindows.forEach((win) => win.close());
-    extensionProcesses.forEach((proc) => proc.kill());
+    // extensionWindows.forEach((win) => win.close());
+    // extensionProcesses.forEach((proc) => proc.kill());
   });
 
   // Auto update
@@ -404,63 +404,63 @@ ipcMain.on("start-app", startApp);
 ipcMain.on("install-app", installApp);
 
 //重启扩展
-ipcMain.on("restart-extension", (event, arg) => {
-  const { name: extName, startPath, startType } = JSON.parse(arg);
-  if (!mainProcess && !mainWindow) return;
+// ipcMain.on("restart-extension", (event, arg) => {
+//   const { name: extName, startPath, startType } = JSON.parse(arg);
+//   if (!mainProcess && !mainWindow) return;
 
-  if (startType === "webview") {
-    const childWindow = new BrowserWindow({
-      webPreferences: {
-        preload,
-        nodeIntegration: true,
-        contextIsolation: false,
-      },
-    });
+//   if (startType === "webview") {
+//     const childWindow = new BrowserWindow({
+//       webPreferences: {
+//         preload,
+//         nodeIntegration: true,
+//         contextIsolation: false,
+//       },
+//     });
 
-    try {
-      childWindow.loadURL(`file://${startPath}`);
-    } catch (err) {
-      console.error(err);
-    }
-    extensionWindows.push(childWindow);
-    childWindow.on("closed", () => {
-      const index = extensionWindows.indexOf(childWindow);
-      if (index > -1) {
-        extensionWindows.splice(index, 1);
-      }
-      event.reply("extension-status", {
-        mainName: mainName,
-        name: extName,
-        status: "closed",
-      });
-    });
+//     try {
+//       childWindow.loadURL(`file://${startPath}`);
+//     } catch (err) {
+//       console.error(err);
+//     }
+//     // extensionWindows.push(childWindow);
+//     childWindow.on("closed", () => {
+//       const index = extensionWindows.indexOf(childWindow);
+//       if (index > -1) {
+//         extensionWindows.splice(index, 1);
+//       }
+//       event.reply("extension-status", {
+//         mainName: mainName,
+//         name: extName,
+//         status: "closed",
+//       });
+//     });
 
-    event.reply("extension-status", {
-      mainName: mainName,
-      name: extName,
-      status: "running",
-    });
-  } else if (startType === "exe") {
-    const childProcess = child_process.spawn(startPath);
-    extensionProcesses.push(childProcess);
-    childProcess.on("exit", () => {
-      const index = extensionProcesses.indexOf(childProcess);
-      if (index > -1) {
-        extensionProcesses.splice(index, 1);
-      }
-      event.reply("extension-status", {
-        mainName: mainName,
-        name: extName,
-        status: "closed",
-      });
-    });
-    event.reply("extension-status", {
-      mainName: mainName,
-      name: extName,
-      status: "running",
-    });
-  }
-});
+//     event.reply("extension-status", {
+//       mainName: mainName,
+//       name: extName,
+//       status: "running",
+//     });
+//   } else if (startType === "exe") {
+//     const childProcess = child_process.spawn(startPath);
+//     extensionProcesses.push(childProcess);
+//     childProcess.on("exit", () => {
+//       const index = extensionProcesses.indexOf(childProcess);
+//       if (index > -1) {
+//         extensionProcesses.splice(index, 1);
+//       }
+//       event.reply("extension-status", {
+//         mainName: mainName,
+//         name: extName,
+//         status: "closed",
+//       });
+//     });
+//     event.reply("extension-status", {
+//       mainName: mainName,
+//       name: extName,
+//       status: "running",
+//     });
+//   }
+// });
 
 // New window example arg: new windows url
 ipcMain.handle("open-win", (_, arg) => {

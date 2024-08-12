@@ -144,7 +144,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
           <span className={styles.version}>{`v${version}`}</span>
         </div>
         <div className={styles.desc}>{desc}</div>
-        <div className={styles.extensionContainer}>
+        {/* <div className={styles.extensionContainer}>
           <div className={styles.extensionTitle}>依赖模块:</div>
           <div className={styles.extensionBody}>
             {extensions.map((ite: ExtensionType, ind) => {
@@ -159,7 +159,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
               );
             })}
           </div>
-        </div>
+        </div> */}
 
         <div className={styles.button}>
           {isInstall ? (
