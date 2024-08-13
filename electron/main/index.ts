@@ -15,6 +15,7 @@ import http from "http";
 import * as child_process from "child_process";
 import axios from "axios";
 import * as unzipper from "unzipper";
+import { message } from "antd";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -131,7 +132,10 @@ const getLocalAppConfig = async () => {
 
   const result = confingList
     .map((item: any) => processItem(targetPath, item))
-    .filter((item) => item !== null);
+    .filter((item) => item !== null)
+    .sort((a, b) => {
+      return a.createDate < b.createDate ? 1 : -1;
+    });
   return result;
 };
 //
@@ -188,8 +192,16 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
 
 const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
   const config = JSON.parse(appConfig);
-  const { name, desc, icon, appResource, startPath, startType, version } =
-    config;
+  const {
+    name,
+    desc,
+    icon,
+    appResource,
+    startPath,
+    startType,
+    version,
+    isUpdate,
+  } = config;
   const userDataPath = app.getPath("userData");
   const targetPath = path.join(userDataPath, "system", "app", name);
   const backupPath = path.join(userDataPath, "system", "backup", name);
@@ -203,71 +215,93 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
       status: "pending",
       message: "下载资源...",
     });
-    // 下载资源文件
-    const appResourceFile = await axios.get(appResource, {
-      responseType: "arraybuffer",
-    });
-    // 写入资源文件
-    await fs.promises.writeFile(
-      path.join(downloadPath, "resources.zip"),
-      Buffer.from(appResourceFile.data)
-    );
-    event.reply("install-app-status", {
-      name,
-      status: "pending",
-      message: "解压资源...",
-    });
-    // 解压资源文件
-    await extractZipFile(
-      path.join(downloadPath, "resources.zip"),
-      downloadPath
-    );
-    // 删除压缩文件
-    await fs.promises.unlink(path.join(downloadPath, "resources.zip"));
-    event.reply("install-app-status", {
-      name,
-      status: "pending",
-      message: "处理文件...",
-    });
-    // 处理解压后的文件
-    await handleExtractedFiles(downloadPath);
-    // 转换icon为base64
-    const iconBase64 = await convertIconToBase64(icon);
 
-    const configData = {
-      name,
-      desc,
-      icon: iconBase64,
-      version,
-      startPath,
-      startType,
-    };
-    // 检查startPath是否存在
-    if (!fs.existsSync(path.join(downloadPath, "resources", startPath))) {
-      throw new Error("startPath does not exist");
+    // 下载资源文件
+    try {
+      const appResourceFile = await axios.get(appResource, {
+        responseType: "arraybuffer",
+      });
+      // 写入资源文件
+      await fs.promises.writeFile(
+        path.join(downloadPath, "resources.zip"),
+        Buffer.from(appResourceFile.data)
+      );
+      event.reply("install-app-status", {
+        name,
+        status: "pending",
+        message: "解压资源...",
+      });
+      // 解压资源文件
+      await extractZipFile(
+        path.join(downloadPath, "resources.zip"),
+        downloadPath
+      );
+      // 删除压缩文件
+      await fs.promises.unlink(path.join(downloadPath, "resources.zip"));
+      event.reply("install-app-status", {
+        name,
+        status: "pending",
+        message: "处理文件...",
+      });
+      // 处理解压后的文件
+      await handleExtractedFiles(downloadPath);
+      // 转换icon为base64
+      const iconBase64 = await convertIconToBase64(icon);
+      let createDate = 0;
+      if (isUpdate) {
+        const appConfig = fs.readFileSync(
+          path.join(targetPath, "config.json"),
+          "utf-8"
+        );
+        createDate = JSON.parse(appConfig).createDate;
+      } else {
+        createDate = +new Date();
+      }
+      const updateDate = +new Date();
+      const configData = {
+        name,
+        desc,
+        icon: iconBase64,
+        version,
+        startPath,
+        startType,
+        updateDate,
+        createDate,
+      };
+
+      // 检查startPath是否存在
+      if (!fs.existsSync(path.join(downloadPath, "resources", startPath))) {
+        throw new Error("startPath does not exist");
+      }
+      event.reply("install-app-status", {
+        name,
+        status: "pending",
+        message: "写入配置...",
+      });
+      // 写入config
+      await fs.promises.writeFile(
+        path.join(downloadPath, "config.json"),
+        JSON.stringify(configData),
+        "utf-8"
+      );
+      // 处理扩展
+      await backupAndInstall(targetPath, backupPath, downloadPath);
+      // 通知渲染进程安装成功
+      event.reply("install-app-status", {
+        name,
+        status: "success",
+        message: `${name}安装成功`,
+      });
+    } catch (err) {
+      throw Error("网络环境不佳，请稍后再试");
     }
-    event.reply("install-app-status", {
-      name,
-      status: "pending",
-      message: "写入配置...",
-    });
-    // 写入config
-    await fs.promises.writeFile(
-      path.join(downloadPath, "config.json"),
-      JSON.stringify(configData),
-      "utf-8"
-    );
-    // 处理扩展
-    await backupAndInstall(targetPath, backupPath, downloadPath);
-    // 通知渲染进程安装成功
-    event.reply("install-app-status", { name, status: "success" });
-  } catch (error) {
+  } catch (error: any) {
     await fsExtra.remove(downloadPath);
     event.reply("install-app-status", {
       name: JSON.parse(appConfig).name,
+      message: error.message,
       status: "fail",
     });
-    console.error("Error during installation:", error);
   }
 };
 //处理解压后的文件
@@ -299,13 +333,17 @@ async function backupAndInstall(
   backupPath: string,
   downloadPath: string
 ) {
-  //如果目标目录存在，先备份
   if (fs.existsSync(targetPath)) {
     await fsExtra.remove(backupPath).catch(() => {});
     await fsExtra.move(targetPath, backupPath);
   }
   await fsExtra.remove(targetPath).catch(() => {});
-  await fsExtra.move(downloadPath, targetPath);
+  try {
+    await fsExtra.move(downloadPath, targetPath);
+  } catch (e) {
+    await fsExtra.move(backupPath, targetPath);
+    throw e;
+  }
 }
 
 async function createWindow() {

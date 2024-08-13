@@ -1,4 +1,4 @@
-import { Button } from "antd";
+import { Button, message } from "antd";
 import styles from "./app-item.module.css";
 import Extension, { ExtensionType } from "../../components/extension/Extension";
 import { useEffect, useMemo, useState } from "react";
@@ -24,10 +24,13 @@ const comBtnText = (
   type: number,
   mainProcessStatus: boolean
 ) => {
-  if (isInstall) {
-    return isUpdate ? "更新" : "已安装";
-  } else {
-    return type == 1 ? (mainProcessStatus ? "运行中" : "启动") : "安装";
+  switch (type) {
+    case 1:
+      return mainProcessStatus ? "运行中" : "启动";
+    case 2:
+      return isInstall ? (isUpdate ? "更新" : "已安装") : "安装";
+    default:
+      break;
   }
 };
 
@@ -45,7 +48,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     isUpdate,
     appResource,
   } = props;
-
+  const [messageApi, contextHolder] = message.useMessage();
   const [mainProcessStatus, setMainProcessStatus] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -53,30 +56,13 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     comBtnText(isInstall || false, isUpdate || false, type, mainProcessStatus)
   );
 
-  const btnType: ButtonProps["type"] = useMemo(() => {
-    switch (btnText) {
-      case "更新":
-        return "primary";
-      case "已安装":
-        return "primary";
-      case "运行中":
-        return "primary";
-      case "启动":
-        return "primary";
-      case "安装":
-        return "primary";
-      default:
-        return "primary";
-    }
-  }, [btnText]);
-
   useEffect(() => {
     // 监听主进程发送的主进程状态
     window.ipcRenderer.on(
       "main-process-status",
       (event, { name: mainName, status }) => {
         if (mainName !== name) return;
-        console.log(`主进程 ${name} is ${status}`);
+
         switch (status) {
           case "running":
             setMainProcessStatus(true);
@@ -98,19 +84,23 @@ const AppItem = (props: AppItemProps): JSX.Element => {
 
     //监听主进程发送的安装状态
     window.ipcRenderer.on(
-      "install-status",
+      "install-app-status",
       (event, { name: mainName, status, message }) => {
         if (mainName !== name) return;
-        console.log(`安装 ${name} is ${status}`);
         switch (status) {
           case "pending":
             setLoading(true);
+            setBtnText(message);
             break;
           case "fail":
             setLoading(false);
+            messageApi.error(message);
+            setBtnText("安装");
             break;
           case "success":
             setLoading(false);
+            messageApi.success(message);
+            setBtnText("已安装");
             break;
           default:
             break;
@@ -119,13 +109,17 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     );
   }, []);
 
+  useEffect(() => {
+    setBtnText(
+      comBtnText(isInstall || false, isUpdate || false, type, mainProcessStatus)
+    );
+  }, [mainProcessStatus, isInstall, isUpdate, type, mainProcessStatus]);
+
   const handleClick = (event: React.MouseEvent<HTMLElement>, type?: Number) => {
     if (type == 1) {
-      console.log("启动");
       startApp();
     } else {
-      console.log("安装");
-      installApp();
+      installApp(isUpdate);
     }
   };
 
@@ -152,8 +146,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     window.ipcRenderer.send("start-app", JSON.stringify(data));
   };
 
-  const installApp = () => {
-    console.log("installApp", appResource);
+  const installApp = (isUpdate?: boolean) => {
     window.ipcRenderer.send(
       "install-app",
       JSON.stringify({
@@ -165,53 +158,40 @@ const AppItem = (props: AppItemProps): JSX.Element => {
         startType,
         version,
         extensions,
+        isUpdate,
       })
     );
   };
 
   return (
-    <div className={styles.container}>
-      <div className={styles.left}>
-        <div className={styles.icon}>
-          <img src={icon} alt="" />
+    <>
+      {contextHolder}
+      <div className={styles.container}>
+        <div className={styles.left}>
+          <div className={styles.icon}>
+            <img src={icon} alt="" />
+          </div>
         </div>
-      </div>
-      <div className={styles.right}>
-        <div className={styles.name}>
-          <h3>{name}</h3>
-          <span className={styles.version}>{`v${version}`}</span>
-        </div>
-        <div className={styles.desc}>{desc}</div>
+        <div className={styles.right}>
+          <div className={styles.name}>
+            <h3>{name}</h3>
+            <span className={styles.version}>{`v${version}`}</span>
+          </div>
+          <div className={styles.desc}>{desc}</div>
 
-        <div className={styles.button}>
-          <Button
-            type={btnType}
-            disabled={btnText == "已安装" ? true : false}
-            loading={loading}
-            onClick={(event) => handleClick(event, type)}
-          >
-            {btnText}
-          </Button>
-          {/* {isInstall ? (
-             isUpdate ? (
-              <Button type="primary">更新</Button>
-            ) : (
-              <Button type="primary" disabled>
-                已安装
-              </Button>
-            )
-          ) : (
+          <div className={styles.button}>
             <Button
               type="primary"
-              onClick={(event) => handleClick(event, type)}
+              disabled={btnText == "已安装" ? true : false}
               loading={loading}
+              onClick={(event) => handleClick(event, type)}
             >
-              {type == 1 ? (mainProcessStatus ? "运行中" : "启动") : "安装"}
+              {btnText}
             </Button>
-          )} */}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

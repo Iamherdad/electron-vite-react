@@ -19,7 +19,6 @@ const renderAppList = (data: AppItemProps[], type: number) => {
 const TabsCom = (): JSX.Element => {
   const [localAppData, setLocalAppData] = React.useState<AppItemProps[]>([]);
   const [remoteAppData, setRemoteAppData] = React.useState<AppItemProps[]>([]);
-
   useEffect(() => {
     getLocalAppData();
     window.ipcRenderer.on("get-app-list-reply", (event, arg) => {
@@ -42,7 +41,7 @@ const TabsCom = (): JSX.Element => {
   ];
 
   const getLocalAppData = () => {
-    window.ipcRenderer.send("get-app-list", localAppData);
+    window.ipcRenderer.send("get-app-list");
   };
 
   const getRemoteAppData = async () => {
