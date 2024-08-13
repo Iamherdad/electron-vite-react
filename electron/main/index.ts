@@ -192,8 +192,11 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
     // 创建下载目录
     await fsExtra.ensureDir(downloadPath);
 
-    // const appResourcePath = path.join(downloadPath, "resources");
-    // await fsExtra.ensureDir(appResourcePath);
+    event.reply("install-app-status", {
+      name,
+      status: "pending",
+      message: "下载资源...",
+    });
     // 下载资源文件
     const appResourceFile = await axios.get(appResource, {
       responseType: "arraybuffer",
@@ -203,6 +206,11 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
       path.join(downloadPath, "resources.zip"),
       Buffer.from(appResourceFile.data)
     );
+    event.reply("install-app-status", {
+      name,
+      status: "pending",
+      message: "解压资源...",
+    });
     // 解压资源文件
     await extractZipFile(
       path.join(downloadPath, "resources.zip"),
@@ -210,7 +218,11 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
     );
     // 删除压缩文件
     await fs.promises.unlink(path.join(downloadPath, "resources.zip"));
-
+    event.reply("install-app-status", {
+      name,
+      status: "pending",
+      message: "处理文件...",
+    });
     // 处理解压后的文件
     await handleExtractedFiles(downloadPath);
     // 转换icon为base64
@@ -228,6 +240,11 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
     if (!fs.existsSync(path.join(downloadPath, "resources", startPath))) {
       throw new Error("startPath does not exist");
     }
+    event.reply("install-app-status", {
+      name,
+      status: "pending",
+      message: "写入配置...",
+    });
     // 写入config
     await fs.promises.writeFile(
       path.join(downloadPath, "config.json"),

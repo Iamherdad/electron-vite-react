@@ -1,14 +1,15 @@
 import { Button } from "antd";
 import styles from "./app-item.module.css";
 import Extension, { ExtensionType } from "../../components/extension/Extension";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type, { ButtonProps } from "antd";
 
 export interface AppItemProps {
   name: string;
   desc: string;
   icon: string;
   version: string;
-  type?: number;
+  type: number;
   appResource: string;
   startPath: string;
   startType: string;
@@ -16,6 +17,19 @@ export interface AppItemProps {
   isUpdate?: boolean;
   extensions: ExtensionType[];
 }
+
+const comBtnText = (
+  isInstall: boolean,
+  isUpdate: boolean,
+  type: number,
+  mainProcessStatus: boolean
+) => {
+  if (isInstall) {
+    return isUpdate ? "更新" : "已安装";
+  } else {
+    return type == 1 ? (mainProcessStatus ? "运行中" : "启动") : "安装";
+  }
+};
 
 const AppItem = (props: AppItemProps): JSX.Element => {
   const {
@@ -31,34 +45,32 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     isUpdate,
     appResource,
   } = props;
-  // console.log("AppItem", props);
 
   const [mainProcessStatus, setMainProcessStatus] = useState(false);
-  // const [extensionStatus, setExtensionStatus] = useState(
-  //   new Map<string, boolean>(extensions.map((item) => [item.name, false]))
-  // );
+
   const [loading, setLoading] = useState(false);
+  const [btnText, setBtnText] = useState(
+    comBtnText(isInstall || false, isUpdate || false, type, mainProcessStatus)
+  );
+
+  const btnType: ButtonProps["type"] = useMemo(() => {
+    switch (btnText) {
+      case "更新":
+        return "primary";
+      case "已安装":
+        return "primary";
+      case "运行中":
+        return "primary";
+      case "启动":
+        return "primary";
+      case "安装":
+        return "primary";
+      default:
+        return "primary";
+    }
+  }, [btnText]);
 
   useEffect(() => {
-    // window.ipcRenderer.on(
-    //   "extension-status",
-    //   (event, { mainName, name: extName, status }) => {
-    //     if (mainName !== name) return;
-
-    //     console.log(`扩展 ${extName} is ${status}`);
-    //     switch (status) {
-    //       case "running":
-    //         setExtensionStatus(new Map(extensionStatus.set(extName, true)));
-    //         break;
-    //       case "closed":
-    //         setExtensionStatus(new Map(extensionStatus.set(extName, false)));
-    //         break;
-    //       default:
-    //         break;
-    //     }
-    //   }
-    // );
-
     // 监听主进程发送的主进程状态
     window.ipcRenderer.on(
       "main-process-status",
@@ -69,9 +81,35 @@ const AppItem = (props: AppItemProps): JSX.Element => {
           case "running":
             setMainProcessStatus(true);
             setLoading(true);
+            setBtnText("运行中");
             break;
           case "closed":
             setMainProcessStatus(false);
+            setLoading(false);
+            setBtnText(
+              comBtnText(isInstall || false, isUpdate || false, type, false)
+            );
+            break;
+          default:
+            break;
+        }
+      }
+    );
+
+    //监听主进程发送的安装状态
+    window.ipcRenderer.on(
+      "install-status",
+      (event, { name: mainName, status, message }) => {
+        if (mainName !== name) return;
+        console.log(`安装 ${name} is ${status}`);
+        switch (status) {
+          case "pending":
+            setLoading(true);
+            break;
+          case "fail":
+            setLoading(false);
+            break;
+          case "success":
             setLoading(false);
             break;
           default:
@@ -144,26 +182,18 @@ const AppItem = (props: AppItemProps): JSX.Element => {
           <span className={styles.version}>{`v${version}`}</span>
         </div>
         <div className={styles.desc}>{desc}</div>
-        {/* <div className={styles.extensionContainer}>
-          <div className={styles.extensionTitle}>依赖模块:</div>
-          <div className={styles.extensionBody}>
-            {extensions.map((ite: ExtensionType, ind) => {
-              return (
-                <div key={ind} className={styles.extension}>
-                  <Extension
-                    status={extensionStatus.get(ite.name) || false}
-                    mainProcessStatus={mainProcessStatus}
-                    {...ite}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div> */}
 
         <div className={styles.button}>
-          {isInstall ? (
-            isUpdate ? (
+          <Button
+            type={btnType}
+            disabled={btnText == "已安装" ? true : false}
+            loading={loading}
+            onClick={(event) => handleClick(event, type)}
+          >
+            {btnText}
+          </Button>
+          {/* {isInstall ? (
+             isUpdate ? (
               <Button type="primary">更新</Button>
             ) : (
               <Button type="primary" disabled>
@@ -178,7 +208,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
             >
               {type == 1 ? (mainProcessStatus ? "运行中" : "启动") : "安装"}
             </Button>
-          )}
+          )} */}
         </div>
       </div>
     </div>
