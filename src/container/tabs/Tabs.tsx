@@ -77,6 +77,7 @@ const TabsCom = (): JSX.Element => {
         setRemoteAppData(res);
       } catch (e) {
         console.log(e);
+
         hideLoading();
       }
     } else {

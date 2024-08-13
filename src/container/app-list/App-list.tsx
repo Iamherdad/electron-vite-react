@@ -13,12 +13,16 @@ interface AppListProps {
 
 const AppList: React.FC<AppListProps> = (props) => {
   const { data, type } = props;
+
   return (
     <div className={styles.container}>
       {data.map((item, index) => {
         return item.isUpdate ? (
           <div className={styles.item} key={index}>
-            <Badge.Ribbon text={<Ribbon />} color="#52c41a">
+            <Badge.Ribbon
+              text={<Ribbon content={item.updateDesc} />}
+              color="#52c41a"
+            >
               <AppItem key={index} type={type} {...item} />
             </Badge.Ribbon>
           </div>

@@ -15,6 +15,7 @@ export interface AppItemProps {
   startType: string;
   isInstall?: boolean;
   isUpdate?: boolean;
+  updateDesc: String;
 }
 
 const comBtnText = (
@@ -45,6 +46,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     isInstall,
     isUpdate,
     appResource,
+    updateDesc,
   } = props;
   const [messageApi, contextHolder] = message.useMessage();
   const [mainProcessStatus, setMainProcessStatus] = useState(false);
@@ -145,6 +147,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
         startType,
         version,
         isUpdate,
+        updateDesc,
       })
     );
   };

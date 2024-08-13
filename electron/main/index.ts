@@ -11,10 +11,8 @@ import {
   convertIconToBase64,
   killProcessTree,
 } from "../utils/utils";
-import http from "http";
 import * as child_process from "child_process";
 import axios from "axios";
-import * as unzipper from "unzipper";
 import { message } from "antd";
 
 const require = createRequire(import.meta.url);
@@ -170,6 +168,7 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
 
 const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
   const config = JSON.parse(appConfig);
+
   const {
     name,
     desc,
@@ -179,6 +178,7 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
     startType,
     version,
     isUpdate,
+    updateDesc,
   } = config;
   const userDataPath = app.getPath("userData");
   const targetPath = path.join(userDataPath, "system", "app", name);
@@ -245,12 +245,14 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
         startType,
         updateDate,
         createDate,
+        updateDesc,
       };
 
       // 检查startPath是否存在
       if (!fs.existsSync(path.join(downloadPath, "resources", startPath))) {
-        throw new Error("startPath does not exist");
+        throw new Error("解析安装包错误，请稍后再试");
       }
+
       event.reply("install-app-status", {
         name,
         status: "pending",
@@ -274,6 +276,7 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
       throw Error("网络环境不佳，请稍后再试");
     }
   } catch (error: any) {
+    console.error(error);
     await fsExtra.remove(downloadPath);
     event.reply("install-app-status", {
       name: JSON.parse(appConfig).name,
@@ -300,6 +303,15 @@ async function handleExtractedFiles(downloadPath: string) {
       await fs.promises.rename(
         path.join(downloadPath, file),
         path.join(downloadPath, "resources", file)
+      );
+    }
+  } else {
+    //创建文件夹并移动文件
+    await fs.promises.mkdir(path.join(downloadPath, "resources"));
+    for (let i = 0; i < files.length; i++) {
+      await fs.promises.rename(
+        path.join(downloadPath, files[i]),
+        path.join(downloadPath, "resources", files[i])
       );
     }
   }
