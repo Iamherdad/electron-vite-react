@@ -1,6 +1,6 @@
 import { Button, message } from "antd";
 import styles from "./app-item.module.css";
-import Extension, { ExtensionType } from "../../components/extension/Extension";
+
 import { useEffect, useMemo, useState } from "react";
 import type, { ButtonProps } from "antd";
 
@@ -15,7 +15,6 @@ export interface AppItemProps {
   startType: string;
   isInstall?: boolean;
   isUpdate?: boolean;
-  extensions: ExtensionType[];
 }
 
 const comBtnText = (
@@ -41,7 +40,6 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     icon,
     version,
     type = 1,
-    extensions,
     startPath,
     startType,
     isInstall,
@@ -124,22 +122,11 @@ const AppItem = (props: AppItemProps): JSX.Element => {
   };
 
   const startApp = () => {
-    const extensions = props.extensions.map((item) => {
-      return {
-        name: item.name,
-        version: item.version,
-        startPath: item.startPath,
-        startType: item.startType,
-        icon: item.icon,
-      };
-    });
-
     const data = {
       name,
       version,
       startPath,
       startType,
-      extensions,
       icon,
     };
 
@@ -157,7 +144,6 @@ const AppItem = (props: AppItemProps): JSX.Element => {
         startPath,
         startType,
         version,
-        extensions,
         isUpdate,
       })
     );

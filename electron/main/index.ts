@@ -57,11 +57,10 @@ const indexHtml = path.join(RENDERER_DIST, "index.html");
 
 const mainWindow: Map<String, BrowserWindow> = new Map();
 const mainProcess: Map<String, child_process.ChildProcess> = new Map();
-let mainName = "";
 
 //处理扩展item
 const processItem = (targetPath: string, item: any): any | null => {
-  const { name, startPath, extensions } = item;
+  const { name, startPath } = item;
 
   const basePath = path.join(targetPath, name);
   const fullStartPath = path.join(basePath, `resources/${startPath}`);
@@ -73,26 +72,6 @@ const processItem = (targetPath: string, item: any): any | null => {
   return {
     ...item,
     startPath: fullStartPath,
-    extensions: extensions
-      ? extensions
-      : []
-          .map((extension: any) => {
-            const { name: extName, startPath: extStartPath } = extension;
-            const fullExtStartPath = path.join(
-              basePath,
-              `extensions/${extName}/resources/${extStartPath}`
-            );
-
-            if (!fs.existsSync(fullExtStartPath)) {
-              return null;
-            }
-
-            return {
-              ...extension,
-              startPath: fullExtStartPath,
-            };
-          })
-          .filter((ext: any) => ext !== null),
   };
 };
 
@@ -141,8 +120,7 @@ const getLocalAppConfig = async () => {
 //
 const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   const config = JSON.parse(appConfig);
-  const { name, version, startPath, startType, extensions, icon } = config;
-  mainName = name;
+  const { name, version, startPath, startType, icon } = config;
 
   // 根据 startType 打开不同类型的窗口
   if (startType === "webview") {
@@ -394,9 +372,6 @@ async function createWindow() {
       if (pid) {
         killProcessTree(pid);
       }
-
-      // console.log("kill pid", pid);
-      // proc.kill();
     });
   });
 
