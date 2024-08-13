@@ -6,7 +6,7 @@ import os from "node:os";
 import fs from "node:fs";
 import * as fsExtra from "fs-extra";
 import { update } from "./update";
-import { extractZipFile } from "../utils/utils";
+import { extractZipFile, convertIconToBase64 } from "../utils/utils";
 import http from "http";
 import * as child_process from "child_process";
 import axios from "axios";
@@ -180,7 +180,7 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   }
 };
 
-const installApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
+const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
   const config = JSON.parse(appConfig);
   const { name, desc, icon, appResource, startPath, startType, version } =
     config;
@@ -188,64 +188,35 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   const targetPath = path.join(userDataPath, "system", "app", name);
   const backupPath = path.join(userDataPath, "system", "backup", name);
   const downloadPath = path.join(userDataPath, "system", "download", name);
-
   try {
-    // 创建临时下载目录
+    // 创建下载目录
     await fsExtra.ensureDir(downloadPath);
 
-    // 下载
+    // const appResourcePath = path.join(downloadPath, "resources");
+    // await fsExtra.ensureDir(appResourcePath);
+    // 下载资源文件
     const appResourceFile = await axios.get(appResource, {
       responseType: "arraybuffer",
     });
-    const appResourcePath = path.join(downloadPath, "resources");
-
-    await fsExtra.ensureDir(appResourcePath);
-
-    // await new Promise((resolve, reject) => {
-    //   const writer = fs.createWriteStream(
-    //     path.join(appResourcePath, "resources.zip"),
-    //     {
-    //       encoding: "binary",
-    //     }
-    //   );
-    //   writer.write(Buffer.from(appResourceFile.data), (err) => {
-    //     if (err) reject(err);
-    //     else {
-    //       writer.close(); // 确保文件流已关闭
-    //       resolve();
-    //     }
-    //   });
-    // });
-
+    // 写入资源文件
     await fs.promises.writeFile(
-      path.join(appResourcePath, "resources.zip"),
-      Buffer.from(appResourceFile.data),
-      { encoding: "binary" }
+      path.join(downloadPath, "resources.zip"),
+      Buffer.from(appResourceFile.data)
     );
-    console.log("download success");
-
-    // 解压
+    // 解压资源文件
     await extractZipFile(
-      path.join(appResourcePath, "resources.zip"),
-      appResourcePath
+      path.join(downloadPath, "resources.zip"),
+      downloadPath
     );
-    console.log("extract success");
+    // 删除压缩文件
+    await fs.promises.unlink(path.join(downloadPath, "resources.zip"));
 
-    // 删除下载的压缩包
-    await fs.promises.unlink(path.join(appResourcePath, "resources.zip")); // 使用异步方法删除文件
-    console.log("delete success");
+    // 处理解压后的文件
+    await handleExtractedFiles(downloadPath);
+    // 转换icon为base64
+    const iconBase64 = await convertIconToBase64(icon);
 
-    //将icon链接转换为base64
-    const iconData = await axios.get(icon, {
-      responseType: "arraybuffer",
-    });
-    const contentType = iconData.headers["content-type"];
-    const iconBase64 = `data:${contentType};base64,${Buffer.from(
-      iconData.data
-    ).toString("base64")}`;
-
-    //创建配置文件config.json
-    const config = {
+    const configData = {
       name,
       desc,
       icon: iconBase64,
@@ -253,42 +224,67 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
       startPath,
       startType,
     };
+    // 检查startPath是否存在
+    if (!fs.existsSync(path.join(downloadPath, "resources", startPath))) {
+      throw new Error("startPath does not exist");
+    }
+    // 写入config
     await fs.promises.writeFile(
       path.join(downloadPath, "config.json"),
-      JSON.stringify(config),
+      JSON.stringify(configData),
       "utf-8"
     );
-
-    // 备份原有文件
-    if (fs.existsSync(targetPath)) {
-      await fsExtra.move(targetPath, backupPath);
-    }
-
-    // 移动文件
-    try {
-      await fsExtra.move(downloadPath, targetPath);
-      console.log("install success");
-      // 通知渲染进程安装成功
-      event.reply("install-app-status", { name, status: "success" });
-    } catch (e) {
-      console.log(e);
-      // 通知渲染进程安装失败
-      event.reply("install-app-status", { name, status: "fail" });
-      // 删除下载的文件
-      await fsExtra.remove(downloadPath);
-      // 恢复备份文件
-      if (fs.existsSync(backupPath)) {
-        await fsExtra.move(backupPath, targetPath);
-      }
-    }
-  } catch (error: any) {
-    // 下载失败，删除下载的文件
+    // 处理扩展
+    await backupAndInstall(targetPath, backupPath, downloadPath);
+    // 通知渲染进程安装成功
+    event.reply("install-app-status", { name, status: "success" });
+  } catch (error) {
     await fsExtra.remove(downloadPath);
-    // 通知渲染进程安装失败
-    event.reply("install-app-status", { name, status: "fail" });
+    event.reply("install-app-status", {
+      name: JSON.parse(appConfig).name,
+      status: "fail",
+    });
     console.error("Error during installation:", error);
   }
 };
+//处理解压后的文件
+async function handleExtractedFiles(downloadPath: string) {
+  //将解压后的文件重命名为resources
+  const files = await fs.promises.readdir(downloadPath);
+  //如果是文件夹则重命名否则创建文件夹并移动文件
+  if (files.length === 1) {
+    const file = files[0];
+    const fileStat = await fs.promises.stat(path.join(downloadPath, file));
+    if (fileStat.isDirectory()) {
+      await fs.promises.rename(
+        path.join(downloadPath, file),
+        path.join(downloadPath, "resources")
+      );
+    } else {
+      await fs.promises.mkdir(path.join(downloadPath, "resources"));
+      await fs.promises.rename(
+        path.join(downloadPath, file),
+        path.join(downloadPath, "resources", file)
+      );
+    }
+  }
+}
+
+//备份并安装
+async function backupAndInstall(
+  targetPath: string,
+  backupPath: string,
+  downloadPath: string
+) {
+  //如果目标目录存在，先备份
+  if (fs.existsSync(targetPath)) {
+    await fsExtra.remove(backupPath).catch(() => {});
+    await fsExtra.move(targetPath, backupPath);
+  }
+  await fsExtra.remove(targetPath).catch(() => {});
+  await fsExtra.move(downloadPath, targetPath);
+}
+
 async function createWindow() {
   win = new BrowserWindow({
     width: 1500,
