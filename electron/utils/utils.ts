@@ -3,6 +3,8 @@ import http from "http";
 import path from "path";
 import axios from "axios";
 import * as unzipper from "unzipper";
+import psTree from "ps-tree";
+import treeKill from "tree-kill";
 
 const extractZipFile = async (zipPath: string, targetPath: string) => {
   try {
@@ -23,4 +25,16 @@ const convertIconToBase64 = async (iconUrl: string) => {
     "base64"
   )}`;
 };
-export { extractZipFile, convertIconToBase64 };
+
+//杀死进程树
+const killProcessTree = (pid: number) => {
+  treeKill(pid, "SIGKILL", (err) => {
+    if (err) {
+      console.error(`Error killing process tree for pid ${pid}:`, err);
+    } else {
+      console.log(`Successfully killed process tree for pid ${pid}`);
+    }
+  });
+};
+
+export { extractZipFile, convertIconToBase64, killProcessTree };

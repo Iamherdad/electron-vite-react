@@ -6,7 +6,11 @@ import os from "node:os";
 import fs from "node:fs";
 import * as fsExtra from "fs-extra";
 import { update } from "./update";
-import { extractZipFile, convertIconToBase64 } from "../utils/utils";
+import {
+  extractZipFile,
+  convertIconToBase64,
+  killProcessTree,
+} from "../utils/utils";
 import http from "http";
 import * as child_process from "child_process";
 import axios from "axios";
@@ -50,11 +54,8 @@ let win: BrowserWindow | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
-//扩展窗口
-let mainWindow: BrowserWindow | null = null;
-let mainProcess: child_process.ChildProcess | null = null;
-const extensionWindows: BrowserWindow[] = [];
-const extensionProcesses: child_process.ChildProcess[] = [];
+const mainWindow: Map<String, BrowserWindow> = new Map();
+const mainProcess: Map<String, child_process.ChildProcess> = new Map();
 let mainName = "";
 
 //处理扩展item
@@ -141,42 +142,47 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
 
   // 根据 startType 打开不同类型的窗口
   if (startType === "webview") {
-    mainWindow = new BrowserWindow({
-      webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false,
-      },
-    });
+    mainWindow.set(
+      name,
+      new BrowserWindow({
+        webPreferences: {
+          nodeIntegration: true,
+          contextIsolation: false,
+        },
+      })
+    );
+    const window = mainWindow.get(name);
+    if (window) {
+      window.loadURL(`file://${startPath}`);
 
-    mainWindow.loadURL(`file://${startPath}`);
-    // 通知渲染进程主窗口已打开
-    event.reply("main-process-status", { name: name, status: "running" });
-  } else if (startType === "exe") {
-    mainProcess = child_process.spawn(startPath);
-    // 通知渲染进程主进程已启动
-    event.reply("main-process-status", { name: name, status: "running" });
+      // 通知渲染进程主窗口已打开
+      event.reply("main-process-status", { name: name, status: "running" });
+    }
 
-    mainProcess.on("exit", () => {
-      // extensionWindows.forEach((win) => win.close());
-      // extensionProcesses.forEach((proc) => proc.kill());
-      mainProcess?.kill();
-      mainProcess = null;
-      // 通知渲染进程主进程已退出
-
-      event.reply("main-process-status", { name: name, status: "closed" });
-    });
-  }
-
-  // 监听主窗口关闭事件，关闭所有扩展窗口或进程
-  if (mainWindow) {
-    mainWindow.on("closed", () => {
-      // extensionWindows.forEach((win) => win.close());
-      // extensionProcesses.forEach((proc) => proc.kill());
-      mainWindow = null;
-      mainName = "";
+    mainWindow.get(name)?.on("closed", () => {
+      mainWindow.delete(name);
       // 通知渲染进程主窗口已关闭
       event.reply("main-process-status", { name: name, status: "closed" });
     });
+  } else if (startType === "exe") {
+    mainProcess.set(name, child_process.spawn(startPath, { shell: false }));
+    const process = mainProcess.get(name);
+
+    if (process) {
+      console.log("processStart", process.pid);
+      process.on("exit", () => {
+        const pid = process.pid;
+        if (pid) {
+          killProcessTree(pid);
+        }
+
+        mainProcess.delete(name);
+        // 通知渲染进程主进程已退出
+        event.reply("main-process-status", { name: name, status: "closed" });
+      });
+      // 通知渲染进程主进程已启动
+      event.reply("main-process-status", { name: name, status: "running" });
+    }
   }
 };
 
@@ -343,10 +349,17 @@ async function createWindow() {
 
   win.on("closed", () => {
     win = null;
-    mainWindow?.close();
-    mainProcess?.kill();
-    // extensionWindows.forEach((win) => win.close());
-    // extensionProcesses.forEach((proc) => proc.kill());
+
+    mainWindow.forEach((win) => win.close());
+    mainProcess.forEach((proc) => {
+      const pid = proc.pid;
+      if (pid) {
+        killProcessTree(pid);
+      }
+
+      // console.log("kill pid", pid);
+      // proc.kill();
+    });
   });
 
   // Auto update
@@ -358,6 +371,13 @@ app.whenReady().then(createWindow);
 app.on("window-all-closed", () => {
   console.log("window-all-closed");
   win = null;
+  mainWindow.forEach((win) => win.close());
+  mainProcess.forEach((proc) => {
+    const pid = proc.pid;
+    if (pid) {
+      killProcessTree(pid);
+    }
+  });
   if (process.platform !== "darwin") app.quit();
 });
 
@@ -394,65 +414,6 @@ ipcMain.on("start-app", startApp);
 
 //安装app
 ipcMain.on("install-app", installApp);
-
-//重启扩展
-// ipcMain.on("restart-extension", (event, arg) => {
-//   const { name: extName, startPath, startType } = JSON.parse(arg);
-//   if (!mainProcess && !mainWindow) return;
-
-//   if (startType === "webview") {
-//     const childWindow = new BrowserWindow({
-//       webPreferences: {
-//         preload,
-//         nodeIntegration: true,
-//         contextIsolation: false,
-//       },
-//     });
-
-//     try {
-//       childWindow.loadURL(`file://${startPath}`);
-//     } catch (err) {
-//       console.error(err);
-//     }
-//     // extensionWindows.push(childWindow);
-//     childWindow.on("closed", () => {
-//       const index = extensionWindows.indexOf(childWindow);
-//       if (index > -1) {
-//         extensionWindows.splice(index, 1);
-//       }
-//       event.reply("extension-status", {
-//         mainName: mainName,
-//         name: extName,
-//         status: "closed",
-//       });
-//     });
-
-//     event.reply("extension-status", {
-//       mainName: mainName,
-//       name: extName,
-//       status: "running",
-//     });
-//   } else if (startType === "exe") {
-//     const childProcess = child_process.spawn(startPath);
-//     extensionProcesses.push(childProcess);
-//     childProcess.on("exit", () => {
-//       const index = extensionProcesses.indexOf(childProcess);
-//       if (index > -1) {
-//         extensionProcesses.splice(index, 1);
-//       }
-//       event.reply("extension-status", {
-//         mainName: mainName,
-//         name: extName,
-//         status: "closed",
-//       });
-//     });
-//     event.reply("extension-status", {
-//       mainName: mainName,
-//       name: extName,
-//       status: "running",
-//     });
-//   }
-// });
 
 // New window example arg: new windows url
 ipcMain.handle("open-win", (_, arg) => {

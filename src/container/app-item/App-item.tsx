@@ -9,7 +9,7 @@ export interface AppItemProps {
   desc: string;
   icon: string;
   version: string;
-  type: number;
+  type?: number;
   appResource: string;
   startPath: string;
   startType: string;
@@ -37,7 +37,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     desc,
     icon,
     version,
-    type,
+    type = 1,
     extensions,
     startPath,
     startType,
