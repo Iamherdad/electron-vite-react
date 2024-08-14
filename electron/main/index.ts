@@ -14,6 +14,7 @@ import {
 import * as child_process from "child_process";
 import axios from "axios";
 import { message } from "antd";
+import { KP_APP_CONFIG } from "electron/types/app";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -74,52 +75,86 @@ const processItem = (targetPath: string, item: any): any | null => {
   };
 };
 
-const getLocalConfig = async (type: "core" | "app") => {
+const getAppConfig = () => {
   const userDataPath = app.getPath("userData");
-  const targetPath = path.join(userDataPath, "system", type);
+  const targetPath = path.join(userDataPath, "system", "app");
   fsExtra.ensureDirSync(targetPath);
   const files = fs.readdirSync(targetPath);
-  if (!files) {
-    return;
+  if (!files || files.length < 1) {
+    thorwError("系统配置文件损坏，请在设置中使用修复工具修复");
   }
-
-  const configList = [];
-  for (let i = 0; i < files.length; i++) {
-    const stat = fs.statSync(path.join(targetPath, files[i]));
-    if (!stat.isDirectory()) {
-      continue;
-    }
-    if (!fs.existsSync(path.join(targetPath, files[i], "config.json"))) {
-      continue;
-    }
-    const appConfig = fs.readFileSync(
-      path.join(targetPath, files[i], "config.json"),
-      "utf-8"
-    );
-    configList.push(JSON.parse(appConfig));
+  const configPath = path.join(targetPath, "config.json");
+  if (!fs.existsSync(configPath)) {
+    thorwError("系统配置文件损坏，请在设置中使用修复工具修复");
   }
-
-  const result = configList
-    .map((item: any) => processItem(targetPath, item))
-    .filter((item) => item !== null)
-    .sort((a, b) => {
-      return a.createDate < b.createDate ? 1 : -1;
-    });
-
+  const configContent = fs.readFileSync(configPath, "utf-8");
+  const result = JSON.parse(configContent);
   return result;
 };
 
-const startCoreApp = async () => {
-  const res = await getLocalConfig("core");
+const getLocalConfig = async (type: "core" | "app") => {
+  const userDataPath = app.getPath("userData");
+  const targetPath = path.join(userDataPath, "system", "app");
 
-  if (res && res.length > 0) {
-    const { name, startPath, startType } = res[0];
-    if (startType === "exe") {
-      startProcess(name, startPath);
+  try {
+    const configContent = getAppConfig();
+    const { app, coreApp, softVersion } = configContent;
+    const files = fs.readdirSync(targetPath);
+    if (!app || !coreApp || !softVersion) {
+      thorwError("系统配置文件损坏，请在设置中使用修复工具修复");
     }
-  } else {
-    dialog.showErrorBox("错误", "系统核心模块损坏，请卸载后重新安装");
+    const appList = files.filter((item) => item.startsWith("KP"));
+
+    //检验目录是否存在并启动文件有效
+    const validAppList: KP_APP_CONFIG[] = (
+      type === "core" ? coreApp : app
+    ).filter((ite: any) => {
+      const appPath = path.join(targetPath, ite.localPath);
+      if (
+        appList.includes(ite.localPath) &&
+        fs.existsSync(appPath) &&
+        fs.existsSync(path.join(appPath, "resources", ite.startPath))
+      ) {
+        return true;
+      }
+    });
+    if (validAppList.length < 1) return [];
+
+    //更改启动路径
+    validAppList.forEach((item: any) => {
+      const appPath = path.join(targetPath, item.localPath);
+      const startPath = path.join(appPath, "resources", item.startPath);
+      item.startPath = startPath;
+    });
+
+    const result = validAppList.sort((a, b) => {
+      return a.createDate < b.createDate ? 1 : -1;
+    });
+
+    return result;
+  } catch (err: any) {
+    console.log(err);
+    if (err.name && err.name === "KP_CORE_ERROR") {
+      dialog.showErrorBox("错误", err.message);
+    } else {
+      dialog.showErrorBox("错误", "系统异常，请联系售后");
+    }
   }
+};
+
+const startCoreApp = async () => {
+  try {
+    const res = await getLocalConfig("core");
+
+    if (res && res.length > 0) {
+      const { name, startPath, startType } = res[0];
+      if (startType === "exe") {
+        startProcess(name, startPath);
+      }
+    } else {
+      dialog.showErrorBox("错误", "系统核心模块损坏，请卸载后重新安装");
+    }
+  } catch (err) {}
 };
 
 const startProcess = (name: string, startPath: string) => {
@@ -130,9 +165,6 @@ const startProcess = (name: string, startPath: string) => {
     if (process) {
       console.log("processStart", process.pid);
       process.on("exit", (code, signal) => {
-        console.log(
-          `Process ${name} exited with code ${code} and signal ${signal}`
-        );
         // 自动重启
         if (win !== null) {
           console.log(`Restarting process ${name}...`);
@@ -141,7 +173,6 @@ const startProcess = (name: string, startPath: string) => {
       });
     }
   } catch (err) {
-    console.log(err);
     if (coreApp.has(name)) {
       coreApp.delete(name);
     }
@@ -152,7 +183,7 @@ const startProcess = (name: string, startPath: string) => {
 
 const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   const config = JSON.parse(appConfig);
-  const { name, version, startPath, startType, icon } = config;
+  const { name, version, startPath, startType, icon, localPath } = config;
 
   // 根据 startType 打开不同类型的窗口
   if (startType === "webview") {
@@ -183,7 +214,6 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
     const process = mainProcess.get(name);
 
     if (process) {
-      console.log("processStart", process.pid);
       process.on("exit", () => {
         const pid = process.pid;
         if (pid) {
@@ -202,7 +232,6 @@ const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
 
 const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
   const config = JSON.parse(appConfig);
-
   const {
     name,
     desc,
@@ -213,29 +242,31 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
     version,
     isUpdate,
     updateDesc,
+    createDate,
   } = config;
   const userDataPath = app.getPath("userData");
-  const targetPath = path.join(userDataPath, "system", "app", name);
-  const backupPath = path.join(userDataPath, "system", "backup", name);
-  const downloadPath = path.join(userDataPath, "system", "download", name);
+  const time = +new Date();
+  const folderName = `KP${time}`;
+  const targetPath = path.join(userDataPath, "system", "app", folderName);
   try {
     // 创建下载目录
-    await fsExtra.ensureDir(downloadPath);
-
+    await fsExtra.ensureDir(targetPath);
     event.reply("install-app-status", {
       name,
       status: "pending",
       message: "下载资源...",
     });
+    //获取主配置
+    const mainConfig = getAppConfig();
 
-    // 下载资源文件
     try {
+      // 下载压缩包
       const appResourceFile = await axios.get(appResource, {
         responseType: "arraybuffer",
       });
-      // 写入资源文件
+      // 写入压缩文件
       await fs.promises.writeFile(
-        path.join(downloadPath, "resources.zip"),
+        path.join(targetPath, "resources.zip"),
         Buffer.from(appResourceFile.data)
       );
       event.reply("install-app-status", {
@@ -243,32 +274,25 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
         status: "pending",
         message: "解压资源...",
       });
-      // 解压资源文件
-      await extractZipFile(
-        path.join(downloadPath, "resources.zip"),
-        downloadPath
-      );
+      // 解压
+      await extractZipFile(path.join(targetPath, "resources.zip"), targetPath);
       // 删除压缩文件
-      await fs.promises.unlink(path.join(downloadPath, "resources.zip"));
+      await fs.promises.unlink(path.join(targetPath, "resources.zip"));
       event.reply("install-app-status", {
         name,
         status: "pending",
         message: "处理文件...",
       });
       // 处理解压后的文件
-      await handleExtractedFiles(downloadPath);
+      await handleExtractedFiles(targetPath);
       // 转换icon为base64
       const iconBase64 = await convertIconToBase64(icon);
-      let createDate = 0;
-      if (isUpdate) {
-        const appConfig = fs.readFileSync(
-          path.join(targetPath, "config.json"),
-          "utf-8"
-        );
-        createDate = JSON.parse(appConfig).createDate;
-      } else {
-        createDate = +new Date();
+      let create_date = createDate;
+      // 如果是新安装则记录安装时间
+      if (!isUpdate) {
+        create_date = +new Date();
       }
+
       const updateDate = +new Date();
       const configData = {
         name,
@@ -278,12 +302,13 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
         startPath,
         startType,
         updateDate,
-        createDate,
+        create_date,
         updateDesc,
+        localPath: folderName,
       };
 
-      // 检查startPath是否存在
-      if (!fs.existsSync(path.join(downloadPath, "resources", startPath))) {
+      // 检查应用启动目录是否存在
+      if (!fs.existsSync(path.join(targetPath, "resources", startPath))) {
         throw new Error("解析安装包错误，请稍后再试");
       }
 
@@ -294,13 +319,31 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
       });
       // 写入config
       await fs.promises.writeFile(
-        path.join(downloadPath, "config.json"),
+        path.join(targetPath, "config.json"),
         JSON.stringify(configData),
         "utf-8"
       );
-      // 处理扩展
-      await backupAndInstall(targetPath, backupPath, downloadPath);
-      // 通知渲染进程安装成功
+
+      //判断mainConfig.app里是否存在同名app
+      const appList = JSON.parse(JSON.stringify(mainConfig.app));
+      const isExist = appList.some((item: any) => item.name === name);
+
+      if (isExist) {
+        //删除原有app
+        const index = appList.findIndex((item: any) => item.name === name);
+        appList.splice(index, 1);
+      }
+      appList.push(configData);
+      const newMainConfig = {
+        ...mainConfig,
+        app: appList,
+      };
+      //更新主配置
+      await fs.promises.writeFile(
+        path.join(userDataPath, "system", "app", "config.json"),
+        JSON.stringify(newMainConfig),
+        "utf-8"
+      );
       event.reply("install-app-status", {
         name,
         status: "success",
@@ -311,7 +354,7 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
     }
   } catch (error: any) {
     console.error(error);
-    await fsExtra.remove(downloadPath);
+    await fsExtra.remove(targetPath);
     event.reply("install-app-status", {
       name: JSON.parse(appConfig).name,
       message: error.message,
@@ -369,9 +412,10 @@ const backupAndInstall = async (
     throw e;
   }
 };
-
-const getAppList = async (event: Electron.IpcMainEvent, arg: any) => {
+//获取已安装app
+const getLocalApp = async (event: Electron.IpcMainEvent, arg: any) => {
   const res = await getLocalConfig("app");
+
   event.reply("get-app-list-reply", JSON.stringify(res));
 };
 
@@ -507,7 +551,6 @@ app.on("second-instance", () => {
 });
 
 ipcMain.on("colse", (e) => {
-  console.log("close");
   e.preventDefault();
 });
 
@@ -524,10 +567,10 @@ ipcMain.on("kp-system", (event, arg) => {
   const { type, data } = arg;
   switch (type) {
     case "check-core-update":
-      checkCoreUpdate(event, data);
+      // checkCoreUpdate(event, data);
       break;
     case "get-app-list":
-      getAppList(event, data);
+      getLocalApp(event, data);
       break;
     case "start-app":
       startApp(event, data);

@@ -16,6 +16,8 @@ export interface AppItemProps {
   isInstall?: boolean;
   isUpdate?: boolean;
   updateDesc: String;
+  localPath: string;
+  updateDate: string;
 }
 
 const comBtnText = (
@@ -47,6 +49,8 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     isUpdate,
     appResource,
     updateDesc,
+    localPath,
+    updateDate,
   } = props;
   const [messageApi, contextHolder] = message.useMessage();
   const [mainProcessStatus, setMainProcessStatus] = useState(false);
@@ -130,6 +134,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
       startPath,
       startType,
       icon,
+      localPath,
     };
 
     window.ipcRenderer.send("kp-system", {
@@ -151,6 +156,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
         version,
         isUpdate,
         updateDesc,
+        updateDate,
       }),
     });
   };

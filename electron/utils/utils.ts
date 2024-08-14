@@ -30,7 +30,7 @@ const convertIconToBase64 = async (iconUrl: string) => {
 const killProcessTree = (pid: number) => {
   treeKill(pid, "SIGKILL", (err) => {
     if (err) {
-      console.error(`Error killing process tree for pid ${pid}:`, err);
+      console.error(err);
     } else {
       console.log(`Successfully killed process tree for pid ${pid}`);
     }
