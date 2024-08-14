@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain } from "electron";
+import { app, BrowserWindow, shell, ipcMain, dialog } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -55,6 +55,7 @@ const indexHtml = path.join(RENDERER_DIST, "index.html");
 
 const mainWindow: Map<String, BrowserWindow> = new Map();
 const mainProcess: Map<String, child_process.ChildProcess> = new Map();
+const coreApp: Map<String, child_process.ChildProcess> = new Map();
 
 //处理扩展item
 const processItem = (targetPath: string, item: any): any | null => {
@@ -73,49 +74,82 @@ const processItem = (targetPath: string, item: any): any | null => {
   };
 };
 
-//获取本地应用配置
-const getLocalAppConfig = async () => {
-  // 获取用户数据目录
+const getLocalConfig = async (type: "core" | "app") => {
   const userDataPath = app.getPath("userData");
-  console.log("userDataPath", userDataPath);
-  const targetPath = path.join(userDataPath, "system", "app");
-
-  // 检查并创建 targetPath 目录
+  const targetPath = path.join(userDataPath, "system", type);
   fsExtra.ensureDirSync(targetPath);
-  const files = fs.readdirSync(targetPath); // 同步读取目录
+  const files = fs.readdirSync(targetPath);
   if (!files) {
     return;
   }
-  const confingList = [];
 
+  const configList = [];
   for (let i = 0; i < files.length; i++) {
-    //判断是否为文件夹并且是否存在config.json
     const stat = fs.statSync(path.join(targetPath, files[i]));
     if (!stat.isDirectory()) {
       continue;
     }
-
     if (!fs.existsSync(path.join(targetPath, files[i], "config.json"))) {
       continue;
     }
-
     const appConfig = fs.readFileSync(
       path.join(targetPath, files[i], "config.json"),
       "utf-8"
     );
-
-    confingList.push(JSON.parse(appConfig));
+    configList.push(JSON.parse(appConfig));
   }
 
-  const result = confingList
+  const result = configList
     .map((item: any) => processItem(targetPath, item))
     .filter((item) => item !== null)
     .sort((a, b) => {
       return a.createDate < b.createDate ? 1 : -1;
     });
+
   return result;
 };
-//
+
+const startCoreApp = async () => {
+  const res = await getLocalConfig("core");
+
+  if (res && res.length > 0) {
+    const { name, startPath, startType } = res[0];
+    if (startType === "exe") {
+      startProcess(name, startPath);
+    }
+  } else {
+    dialog.showErrorBox("错误", "系统核心模块损坏，请卸载后重新安装");
+  }
+};
+
+const startProcess = (name: string, startPath: string) => {
+  try {
+    const process = child_process.spawn(startPath, { shell: false });
+    coreApp.set(name, process);
+
+    if (process) {
+      console.log("processStart", process.pid);
+      process.on("exit", (code, signal) => {
+        console.log(
+          `Process ${name} exited with code ${code} and signal ${signal}`
+        );
+        // 自动重启
+        if (win !== null) {
+          console.log(`Restarting process ${name}...`);
+          startProcess(name, startPath);
+        }
+      });
+    }
+  } catch (err) {
+    console.log(err);
+    if (coreApp.has(name)) {
+      coreApp.delete(name);
+    }
+    //重启
+    startProcess(name, startPath);
+  }
+};
+
 const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   const config = JSON.parse(appConfig);
   const { name, version, startPath, startType, icon } = config;
@@ -286,7 +320,7 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
   }
 };
 //处理解压后的文件
-async function handleExtractedFiles(downloadPath: string) {
+const handleExtractedFiles = async (downloadPath: string) => {
   //将解压后的文件重命名为resources
   const files = await fs.promises.readdir(downloadPath);
   //如果是文件夹则重命名否则创建文件夹并移动文件
@@ -315,14 +349,14 @@ async function handleExtractedFiles(downloadPath: string) {
       );
     }
   }
-}
+};
 
 //备份并安装
-async function backupAndInstall(
+const backupAndInstall = async (
   targetPath: string,
   backupPath: string,
   downloadPath: string
-) {
+) => {
   if (fs.existsSync(targetPath)) {
     await fsExtra.remove(backupPath).catch(() => {});
     await fsExtra.move(targetPath, backupPath);
@@ -334,7 +368,63 @@ async function backupAndInstall(
     await fsExtra.move(backupPath, targetPath);
     throw e;
   }
-}
+};
+
+const getAppList = async (event: Electron.IpcMainEvent, arg: any) => {
+  const res = await getLocalConfig("app");
+  event.reply("get-app-list-reply", JSON.stringify(res));
+};
+
+const thorwError = (message: string) => {
+  const error = new Error();
+  error.name = "KP_CORE_ERROR";
+  error.message = message;
+  throw error;
+};
+
+const checkCoreUpdate = async (event: Electron.IpcMainEvent, arg: any) => {
+  const userDataPath = app.getPath("userData");
+  const targetPath = path.join(userDataPath, "system", "core");
+  try {
+    const files = fs.readdirSync(targetPath);
+    if (files.length < 1) {
+      thorwError("系统核心模块损坏，请卸载后重新安装");
+    }
+
+    const coreConfigPath = path.join(targetPath, files[0], "config.json");
+    const coreConfig = fs.readFileSync(coreConfigPath, "utf-8");
+    if (!coreConfig) {
+      thorwError("系统核心模块损坏，请卸载后重新安装");
+    }
+    const config = JSON.parse(coreConfig);
+    const { version } = config;
+    const updateUrl = "http://127.0.0.1:3001/core";
+
+    try {
+      const res = await axios.get(updateUrl);
+      if (res.data.length < 1) {
+        return;
+      }
+      const data = res.data[0];
+      if (data.version !== version) {
+        // 有新版本先下载再通知用户是否更新
+
+        event.reply("check-core-update-reply", JSON.stringify(data));
+      }
+    } catch (error) {
+      console.log("UPDATE ERROR ON INTNET");
+    }
+  } catch (err: any) {
+    console.log(err);
+    if (err.name && err.name === "KP_CORE_ERROR") {
+      dialog.showErrorBox("错误", err.message);
+    } else {
+      dialog.showErrorBox("错误", "系统核心模块损坏，请卸载后重新安装");
+    }
+  }
+
+  return;
+};
 
 async function createWindow() {
   win = new BrowserWindow({
@@ -352,6 +442,8 @@ async function createWindow() {
       // contextIsolation: false,
     },
   });
+
+  await startCoreApp();
 
   if (VITE_DEV_SERVER_URL) {
     // #298
@@ -428,17 +520,25 @@ app.on("activate", () => {
   }
 });
 
-//获取本地应用列表
-ipcMain.on("get-app-list", async (event, arg) => {
-  const res = await getLocalAppConfig();
-  event.reply("get-app-list-reply", JSON.stringify(res));
+ipcMain.on("kp-system", (event, arg) => {
+  const { type, data } = arg;
+  switch (type) {
+    case "check-core-update":
+      checkCoreUpdate(event, data);
+      break;
+    case "get-app-list":
+      getAppList(event, data);
+      break;
+    case "start-app":
+      startApp(event, data);
+      break;
+    case "install-app":
+      installApp(event, data);
+      break;
+    default:
+      break;
+  }
 });
-
-//启动app
-ipcMain.on("start-app", startApp);
-
-//安装app
-ipcMain.on("install-app", installApp);
 
 // New window example arg: new windows url
 ipcMain.handle("open-win", (_, arg) => {

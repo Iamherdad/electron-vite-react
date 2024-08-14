@@ -132,13 +132,16 @@ const AppItem = (props: AppItemProps): JSX.Element => {
       icon,
     };
 
-    window.ipcRenderer.send("start-app", JSON.stringify(data));
+    window.ipcRenderer.send("kp-system", {
+      type: "start-app",
+      data: JSON.stringify(data),
+    });
   };
 
   const installApp = (isUpdate?: boolean) => {
-    window.ipcRenderer.send(
-      "install-app",
-      JSON.stringify({
+    window.ipcRenderer.send("kp-system", {
+      type: "install-app",
+      data: JSON.stringify({
         name,
         desc,
         icon,
@@ -148,8 +151,8 @@ const AppItem = (props: AppItemProps): JSX.Element => {
         version,
         isUpdate,
         updateDesc,
-      })
-    );
+      }),
+    });
   };
 
   return (

@@ -42,7 +42,10 @@ const TabsCom = (): JSX.Element => {
   ];
 
   const getLocalAppData = () => {
-    window.ipcRenderer.send("get-app-list");
+    window.ipcRenderer.send("kp-system", {
+      type: "get-app-list",
+      data: [],
+    });
   };
 
   const getRemoteAppData = async () => {
