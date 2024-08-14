@@ -57,7 +57,7 @@ const indexHtml = path.join(RENDERER_DIST, "index.html");
 const mainWindow: Map<String, BrowserWindow> = new Map();
 const mainProcess: Map<String, child_process.ChildProcess> = new Map();
 const coreApp: Map<String, child_process.ChildProcess> = new Map();
-
+let isQueryPending = false;
 //处理扩展item
 const processItem = (targetPath: string, item: any): any | null => {
   const { name, startPath } = item;
@@ -75,21 +75,39 @@ const processItem = (targetPath: string, item: any): any | null => {
   };
 };
 
-const getAppConfig = () => {
-  const userDataPath = app.getPath("userData");
-  const targetPath = path.join(userDataPath, "system", "app");
-  fsExtra.ensureDirSync(targetPath);
-  const files = fs.readdirSync(targetPath);
-  if (!files || files.length < 1) {
-    thorwError("系统配置文件损坏，请在设置中使用修复工具修复");
+const getAppConfig = async () => {
+  if (isQueryPending) {
+    // 如果查询正在进行中，等待查询结束
+    await new Promise((resolve) => {
+      const timer = setInterval(() => {
+        if (!isQueryPending) {
+          clearInterval(timer);
+          resolve(null);
+        }
+      }, 1000);
+    });
   }
-  const configPath = path.join(targetPath, "config.json");
-  if (!fs.existsSync(configPath)) {
-    thorwError("系统配置文件损坏，请在设置中使用修复工具修复");
+  isQueryPending = true;
+  try {
+    const userDataPath = app.getPath("userData");
+    const targetPath = path.join(userDataPath, "system", "app");
+    fsExtra.ensureDirSync(targetPath);
+    const files = fs.readdirSync(targetPath);
+    if (!files || files.length < 1) {
+      thorwError("系统配置文件损坏，请在设置中使用修复工具修复");
+    }
+    const configPath = path.join(targetPath, "config.json");
+    if (!fs.existsSync(configPath)) {
+      thorwError("系统配置文件损坏，请在设置中使用修复工具修复");
+    }
+    const configContent = fs.readFileSync(configPath, "utf-8");
+    const result = JSON.parse(configContent);
+    return result;
+  } catch (err) {
+    throw err;
+  } finally {
+    isQueryPending = false;
   }
-  const configContent = fs.readFileSync(configPath, "utf-8");
-  const result = JSON.parse(configContent);
-  return result;
 };
 
 const getLocalConfig = async (type: "core" | "app") => {
@@ -97,7 +115,7 @@ const getLocalConfig = async (type: "core" | "app") => {
   const targetPath = path.join(userDataPath, "system", "app");
 
   try {
-    const configContent = getAppConfig();
+    const configContent = await getAppConfig();
     const { app, coreApp, softVersion } = configContent;
     const files = fs.readdirSync(targetPath);
     if (!app || !coreApp || !softVersion) {
@@ -118,6 +136,18 @@ const getLocalConfig = async (type: "core" | "app") => {
         return true;
       }
     });
+
+    const list = app
+      .map((i: KP_APP_CONFIG) => i.localPath)
+      .concat(coreApp.map((i: KP_APP_CONFIG) => i.localPath));
+
+    //删除不存在于list的app
+    for (let i = 0; i < appList.length; i++) {
+      if (!list.includes(appList[i])) {
+        await fsExtra.remove(path.join(targetPath, appList[i]));
+      }
+    }
+
     if (validAppList.length < 1) return [];
 
     //更改启动路径
@@ -256,8 +286,6 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
       status: "pending",
       message: "下载资源...",
     });
-    //获取主配置
-    const mainConfig = getAppConfig();
 
     try {
       // 下载压缩包
@@ -325,6 +353,8 @@ const installApp = async (event: Electron.IpcMainEvent, appConfig: string) => {
       );
 
       //判断mainConfig.app里是否存在同名app
+      //获取主配置
+      const mainConfig = await getAppConfig();
       const appList = JSON.parse(JSON.stringify(mainConfig.app));
       const isExist = appList.some((item: any) => item.name === name);
 
@@ -394,29 +424,17 @@ const handleExtractedFiles = async (downloadPath: string) => {
   }
 };
 
-//备份并安装
-const backupAndInstall = async (
-  targetPath: string,
-  backupPath: string,
-  downloadPath: string
-) => {
-  if (fs.existsSync(targetPath)) {
-    await fsExtra.remove(backupPath).catch(() => {});
-    await fsExtra.move(targetPath, backupPath);
-  }
-  await fsExtra.remove(targetPath).catch(() => {});
-  try {
-    await fsExtra.move(downloadPath, targetPath);
-  } catch (e) {
-    await fsExtra.move(backupPath, targetPath);
-    throw e;
-  }
-};
 //获取已安装app
 const getLocalApp = async (event: Electron.IpcMainEvent, arg: any) => {
   const res = await getLocalConfig("app");
 
   event.reply("get-app-list-reply", JSON.stringify(res));
+};
+
+const restartApp = () => {
+  console.log("restartApp");
+  app.relaunch();
+  app.quit();
 };
 
 const thorwError = (message: string) => {
@@ -428,20 +446,13 @@ const thorwError = (message: string) => {
 
 const checkCoreUpdate = async (event: Electron.IpcMainEvent, arg: any) => {
   const userDataPath = app.getPath("userData");
-  const targetPath = path.join(userDataPath, "system", "core");
-  try {
-    const files = fs.readdirSync(targetPath);
-    if (files.length < 1) {
-      thorwError("系统核心模块损坏，请卸载后重新安装");
-    }
 
-    const coreConfigPath = path.join(targetPath, files[0], "config.json");
-    const coreConfig = fs.readFileSync(coreConfigPath, "utf-8");
-    if (!coreConfig) {
-      thorwError("系统核心模块损坏，请卸载后重新安装");
-    }
-    const config = JSON.parse(coreConfig);
-    const { version } = config;
+  try {
+    const mainConfig = await getAppConfig();
+    const { coreApp } = mainConfig;
+
+    const config = coreApp[0];
+    const { version, startPath, localPath, name, createDate } = config;
     const updateUrl = "http://127.0.0.1:3001/core";
 
     try {
@@ -452,6 +463,71 @@ const checkCoreUpdate = async (event: Electron.IpcMainEvent, arg: any) => {
       const data = res.data[0];
       if (data.version !== version) {
         // 有新版本先下载再通知用户是否更新
+        //下载
+
+        const folderName = `KP${+new Date()}`;
+        const downloadPath = path.join(
+          userDataPath,
+          "system",
+          "app",
+          folderName
+        );
+        await fsExtra.ensureDir(downloadPath);
+        const downloadPathFile = path.join(downloadPath, "resources.zip");
+        const appResourceFile = await axios.get(data.appResource, {
+          responseType: "arraybuffer",
+        });
+        await fs.promises.writeFile(
+          downloadPathFile,
+          Buffer.from(appResourceFile.data)
+        );
+        //解压
+        await extractZipFile(downloadPathFile, downloadPath);
+        //处理文件
+        await handleExtractedFiles(downloadPath);
+
+        //转换icon为base64
+        const iconBase64 = await convertIconToBase64(data.icon);
+
+        const configData = {
+          ...config,
+          name: data.name,
+          desc: data.desc,
+          icon: iconBase64,
+          version: data.version,
+          startPath: data.startPath,
+          startType: data.startType,
+          updateDate: +new Date(),
+          createDate,
+          localPath: folderName,
+        };
+
+        // 写入config
+        await fs.promises.writeFile(
+          path.join(downloadPath, "config.json"),
+          JSON.stringify(configData),
+          "utf-8"
+        );
+        //判断mainConfig.app里是否存在同名app
+        const appList = JSON.parse(JSON.stringify(mainConfig.coreApp));
+        const isExist = appList.some((item: any) => item.name === name);
+        if (isExist) {
+          //删除原有app
+          const index = appList.findIndex((item: any) => item.name === name);
+          appList.splice(index, 1);
+        }
+
+        appList.push(configData);
+        const newMainConfig = {
+          ...mainConfig,
+          coreApp: appList,
+        };
+        //更新主配置
+        await fs.promises.writeFile(
+          path.join(userDataPath, "system", "app", "config.json"),
+          JSON.stringify(newMainConfig),
+          "utf-8"
+        );
 
         event.reply("check-core-update-reply", JSON.stringify(data));
       }
@@ -567,7 +643,7 @@ ipcMain.on("kp-system", (event, arg) => {
   const { type, data } = arg;
   switch (type) {
     case "check-core-update":
-      // checkCoreUpdate(event, data);
+      checkCoreUpdate(event, data);
       break;
     case "get-app-list":
       getLocalApp(event, data);
@@ -577,6 +653,9 @@ ipcMain.on("kp-system", (event, arg) => {
       break;
     case "install-app":
       installApp(event, data);
+      break;
+    case "restart-app":
+      restartApp();
       break;
     default:
       break;

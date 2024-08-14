@@ -5,6 +5,7 @@ import axios from "axios";
 import * as unzipper from "unzipper";
 import psTree from "ps-tree";
 import treeKill from "tree-kill";
+import QueueManager from "./queueManager";
 
 const extractZipFile = async (zipPath: string, targetPath: string) => {
   try {
@@ -37,4 +38,4 @@ const killProcessTree = (pid: number) => {
   });
 };
 
-export { extractZipFile, convertIconToBase64, killProcessTree };
+export { extractZipFile, convertIconToBase64, killProcessTree, QueueManager };

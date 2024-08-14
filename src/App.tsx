@@ -14,9 +14,8 @@ function App() {
     window.ipcRenderer.on("check-core-update-reply", (event, arg) => {
       const data = JSON.parse(arg);
       const { version, updateDesc } = data;
-      console.log("内核更新已就绪", arg);
       api.open({
-        message: `软件内核更新v${version}`,
+        message: `软件内核更新v${version}已就绪,重启后生效`,
         description: updateDesc,
         btn,
         onClose: () => {},
@@ -24,10 +23,16 @@ function App() {
     });
   }, []);
 
+  const handleRestartClick = () => {
+    window.ipcRenderer.send("kp-system", {
+      type: "restart-app",
+      data: [],
+    });
+  };
+
   const btn = (
-    <Button type="primary" size="small" onClick={() => {}}>
-      {" "}
-      立即更新{" "}
+    <Button type="primary" size="small" onClick={handleRestartClick}>
+      立即重启
     </Button>
   );
 
