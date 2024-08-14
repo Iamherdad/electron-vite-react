@@ -15,7 +15,7 @@
   flex: 1;
 } */
 
-.search {
+.header {
   height: 8%;
   /* background-color: red; */
   display: flex;
@@ -23,6 +23,12 @@
   justify-content: center;
   color: white;
   background-color: #55aaff;
+}
+
+.header h3 {
+  flex: 1;
+  text-align: center;
+  justify-content: end;
 }
 
 .tabs {
