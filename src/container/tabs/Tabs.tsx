@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import ReactDOM, { render } from "react-dom";
-import { Tabs } from "antd";
+import { Tabs, message } from "antd";
 import type { TabsProps } from "antd";
 import AppList from "../app-list/App-list";
 import { AppItemProps } from "../app-item/App-item";
@@ -19,6 +19,7 @@ const renderAppList = (data: AppItemProps[], type: number) => {
 const TabsCom = (): JSX.Element => {
   const [localAppData, setLocalAppData] = React.useState<AppItemProps[]>([]);
   const [remoteAppData, setRemoteAppData] = React.useState<AppItemProps[]>([]);
+  const [messageApi, contextHolder] = message.useMessage();
   useEffect(() => {
     getLocalAppData();
     window.ipcRenderer.on("get-app-list-reply", (event, arg) => {
@@ -77,7 +78,7 @@ const TabsCom = (): JSX.Element => {
         setRemoteAppData(res);
       } catch (e) {
         console.log(e);
-
+        messageApi.error("网络不佳，请检查网络连接");
         hideLoading();
       }
     } else {
@@ -115,13 +116,16 @@ const TabsCom = (): JSX.Element => {
   };
 
   return (
-    <Tabs
-      defaultActiveKey="1"
-      items={items}
-      onChange={(activeKey) => handleTabChange(activeKey)}
-      {...TABS_STYLE}
-      tabBarStyle={{ position: "relative" }}
-    />
+    <>
+      {contextHolder}
+      <Tabs
+        defaultActiveKey="1"
+        items={items}
+        onChange={(activeKey) => handleTabChange(activeKey)}
+        {...TABS_STYLE}
+        tabBarStyle={{ position: "relative" }}
+      />
+    </>
   );
 };
 
