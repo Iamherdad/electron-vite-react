@@ -58,22 +58,6 @@ const mainWindow: Map<String, BrowserWindow> = new Map();
 const mainProcess: Map<String, child_process.ChildProcess> = new Map();
 const coreApp: Map<String, child_process.ChildProcess> = new Map();
 let isQueryPending = false;
-//处理扩展item
-const processItem = (targetPath: string, item: any): any | null => {
-  const { name, startPath } = item;
-
-  const basePath = path.join(targetPath, name);
-  const fullStartPath = path.join(basePath, `resources/${startPath}`);
-
-  if (!fs.existsSync(fullStartPath)) {
-    return null;
-  }
-
-  return {
-    ...item,
-    startPath: fullStartPath,
-  };
-};
 
 const getAppConfig = async () => {
   if (isQueryPending) {
@@ -214,6 +198,13 @@ const startProcess = (name: string, startPath: string) => {
 const startApp = async (event: Electron.IpcMainEvent, appConfig: any) => {
   const config = JSON.parse(appConfig);
   const { name, version, startPath, startType, icon, localPath } = config;
+
+  //校验startPath是否存在
+
+  if (!fs.existsSync(startPath)) {
+    dialog.showErrorBox("错误", `插件【${name}】文件损坏，请卸载后重新安装`);
+    return;
+  }
 
   // 根据 startType 打开不同类型的窗口
   if (startType === "webview") {

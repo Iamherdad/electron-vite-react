@@ -36,3 +36,12 @@
   overflow-y: scroll;
   /* background-color: red; */
 }
+
+.setting {
+  cursor: pointer;
+}
+
+.setting:hover {
+  transition: all 0.3s;
+  transform: scale(1.1);
+}

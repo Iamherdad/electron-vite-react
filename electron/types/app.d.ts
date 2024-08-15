@@ -10,7 +10,3 @@ export interface KP_APP_CONFIG {
   createDate: Number;
   updateDesc: string;
 }
-
-export interface KP_APP_LIST {
-  [key: string]: KP_APP_CONFIG;
-}

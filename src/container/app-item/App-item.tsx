@@ -17,7 +17,7 @@ export interface AppItemProps {
   isUpdate?: boolean;
   updateDesc: String;
   localPath: string;
-  updateDate: string;
+  createDate: string;
 }
 
 const comBtnText = (
@@ -50,7 +50,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
     appResource,
     updateDesc,
     localPath,
-    updateDate,
+    createDate,
   } = props;
   const [messageApi, contextHolder] = message.useMessage();
   const [mainProcessStatus, setMainProcessStatus] = useState(false);
@@ -156,7 +156,7 @@ const AppItem = (props: AppItemProps): JSX.Element => {
         version,
         isUpdate,
         updateDesc,
-        updateDate,
+        createDate,
       }),
     });
   };
