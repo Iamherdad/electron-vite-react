@@ -10,6 +10,7 @@ import {
   extractZipFile,
   convertIconToBase64,
   killProcessTree,
+  thorwError,
 } from "../utils/utils";
 import * as child_process from "child_process";
 import axios from "axios";
@@ -100,9 +101,9 @@ const getLocalConfig = async (type: "core" | "app") => {
 
   try {
     const configContent = await getAppConfig();
-    const { app, coreApp, softVersion } = configContent;
+    const { app, coreApp } = configContent;
     const files = fs.readdirSync(targetPath);
-    if (!app || !coreApp || !softVersion) {
+    if (!app || !coreApp) {
       thorwError("系统配置文件损坏，请在设置中使用修复工具修复");
     }
     const appList = files.filter((item) => item.startsWith("KP"));
@@ -428,13 +429,6 @@ const restartApp = () => {
   app.quit();
 };
 
-const thorwError = (message: string) => {
-  const error = new Error();
-  error.name = "KP_CORE_ERROR";
-  error.message = message;
-  throw error;
-};
-
 const checkCoreUpdate = async (event: Electron.IpcMainEvent, arg: any) => {
   const userDataPath = app.getPath("userData");
 
@@ -535,6 +529,42 @@ const checkCoreUpdate = async (event: Electron.IpcMainEvent, arg: any) => {
   }
 
   return;
+};
+
+const getSystemInfo = async (event: Electron.IpcMainEvent) => {
+  const cpu = os.cpus().length; //cpu核心数
+  const memory = os.totalmem(); //内存
+  const platform = os.platform(); //操作系统
+  const arch = os.arch(); //系统架构
+  const release = os.release(); //系统版本号
+  const version = os.version(); //系统版本
+  const userInfo = os.userInfo(); //用户信息
+  const network = os.networkInterfaces(); //网络信息
+  const softVersion = app.getVersion(); //软件版本
+  const totalmem = os.totalmem(); //总内存
+  const freemem = os.freemem(); //空闲内存
+  const systemConfig = await getAppConfig(); //系统配置
+  const coreVersion = await systemConfig.coreApp[0].version;
+  //内核版本
+  const coreLastUpdate = await systemConfig.coreApp[0].updateDate; //内核最后更新时间
+
+  const systemInfo = {
+    cpu,
+    memory,
+    platform,
+    arch,
+    release,
+    version,
+    userInfo,
+    network,
+    softVersion,
+    coreVersion,
+    totalmem,
+    freemem,
+    coreLastUpdate,
+  };
+
+  event.reply("get-system-info-reply", JSON.stringify(systemInfo));
 };
 
 async function createWindow() {
@@ -647,6 +677,9 @@ ipcMain.on("kp-system", (event, arg) => {
       break;
     case "restart-app":
       restartApp();
+      break;
+    case "get-system-info":
+      getSystemInfo(event);
       break;
     default:
       break;

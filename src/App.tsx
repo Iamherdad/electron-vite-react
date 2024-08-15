@@ -1,13 +1,23 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, ConfigProvider, notification } from "antd";
 import Layout from "./container/layout/Layout";
+import systemContext, {
+  SystemInfo,
+  defaultSystemInfo,
+} from "./context/systemContext";
 import "./App.css";
 
 function App() {
   const [api, contextHolder] = notification.useNotification();
+  const [systemInfo, setSystemInfo] = useState<SystemInfo>(defaultSystemInfo);
   useEffect(() => {
     window.ipcRenderer.send("kp-system", {
       type: "check-core-update",
+      data: [],
+    });
+
+    window.ipcRenderer.send("kp-system", {
+      type: "get-system-info",
       data: [],
     });
 
@@ -20,6 +30,10 @@ function App() {
         btn,
         onClose: () => {},
       });
+    });
+
+    window.ipcRenderer.on("get-system-info-reply", (event, arg) => {
+      setSystemInfo(JSON.parse(arg) as SystemInfo);
     });
   }, []);
 
@@ -51,7 +65,9 @@ function App() {
         }}
       >
         {contextHolder}
-        <Layout />
+        <systemContext.Provider value={{ systemInfo }}>
+          <Layout />
+        </systemContext.Provider>
       </ConfigProvider>
     </>
   );

@@ -6,8 +6,10 @@ import Tabs from "../tabs/Tabs";
 
 import styles from "./layout.module.css";
 import Setting from "@/components/setting/setting";
-
+import systemContext from "@/context/systemContext";
 const Layout = (): JSX.Element => {
+  const { systemInfo } = React.useContext(systemContext);
+  const { softVersion } = systemInfo;
   const [open, setOpen] = useState(false);
   const settingClick = () => {
     setOpen(true);
@@ -24,7 +26,7 @@ const Layout = (): JSX.Element => {
   return (
     <div className={styles.main}>
       <div className={styles.header}>
-        <h3>大鱼AI编程助手 v0.0.1</h3>
+        <h3>大鱼AI编程助手 v{softVersion}</h3>
         <div className={styles.setting}>
           <div onClick={settingClick}>
             <SettingOutlined />
