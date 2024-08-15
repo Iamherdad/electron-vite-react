@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Button, ConfigProvider, notification } from "antd";
+import { Button, ConfigProvider, notification, App as AntAPP } from "antd";
 import Layout from "./container/layout/Layout";
 import systemContext, {
   SystemInfo,
@@ -64,10 +64,12 @@ function App() {
           },
         }}
       >
-        {contextHolder}
-        <systemContext.Provider value={{ systemInfo }}>
-          <Layout />
-        </systemContext.Provider>
+        <AntAPP>
+          {contextHolder}
+          <systemContext.Provider value={{ systemInfo }}>
+            <Layout />
+          </systemContext.Provider>
+        </AntAPP>
       </ConfigProvider>
     </>
   );
