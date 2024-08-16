@@ -77,7 +77,15 @@ const getAppConfig = async () => {
     const userDataPath = app.getPath("userData");
     const systemPath = path.join(userDataPath, "system");
     const configPath = path.join(systemPath, "config.json");
-    fsExtra.ensureDirSync(systemPath);
+    if (!fs.existsSync(systemPath)) {
+      const config = {
+        app: [],
+        coreApp: [],
+      };
+      fsExtra.ensureDirSync(systemPath);
+      fs.writeFileSync(configPath, JSON.stringify(config), "utf-8");
+    }
+    // fsExtra.ensureDirSync(systemPath);
     if (!fs.existsSync(configPath)) {
       thorwError("系统配置文件损坏，请在设置中使用修复工具修复");
     }
@@ -100,11 +108,18 @@ const getLocalConfig = async (type: "coreApp" | "app") => {
     // const { app, coreApp } = configContent;
 
     const appConfig = configContent[type];
+    if (!fs.existsSync(targetPath)) {
+      fsExtra.ensureDirSync(targetPath);
+    }
     const files = fs.readdirSync(targetPath);
     if (!appConfig || !Array.isArray(appConfig)) {
       console.log("appConfig", appConfig);
       thorwError("系统配置文件损坏，请在设置中使用修复工具修复");
     }
+    if (appConfig.length == 0) {
+      return [];
+    }
+
     const appList = files.filter((item) => item.startsWith("KP"));
     //校验appList是否存在于appConfig
     const validAppList: KP_APP_CONFIG[] = appConfig.filter((ite: any) => {
