@@ -16,6 +16,7 @@ import * as child_process from "child_process";
 import axios from "axios";
 import { message } from "antd";
 import { KP_APP_CONFIG } from "electron/types/app";
+import { initDatabase } from "../db/createDB";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -717,6 +718,7 @@ const getSystemInfo = async (event: Electron.IpcMainEvent) => {
 };
 
 async function createWindow() {
+  await initDatabase();
   win = new BrowserWindow({
     width: 1500,
     height: 1270,
