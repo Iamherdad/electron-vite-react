@@ -8,6 +8,7 @@
     output: "release/${version}",
   },
   files: ["dist-electron", "dist", "public/template/db/kp_link.sqlite"],
+  extraResources: ["./initData"],
   mac: {
     artifactName: "${productName}_${version}.${ext}",
     target: ["dmg", "zip"],

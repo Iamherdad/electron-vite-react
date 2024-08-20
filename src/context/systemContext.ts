@@ -32,10 +32,14 @@ export const defaultSystemInfo: SystemInfo = {
   coreLastUpdate: 0,
 };
 
+export const defaultLocalAppList = [];
+
 const systemContext = React.createContext<{
   systemInfo: SystemInfo;
+  localAppList: any[];
 }>({
   systemInfo: defaultSystemInfo,
+  localAppList: defaultLocalAppList,
 });
 
 export default systemContext;

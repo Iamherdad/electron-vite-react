@@ -1,9 +1,10 @@
 import { app } from "electron";
 import knex from "knex";
-import { join } from "path";
+import { join, dirname } from "path";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "node:url";
+import { update } from "electron/main/update";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const APP_ROOT = join(__dirname, "../..");
@@ -22,16 +23,32 @@ if (!fs.existsSync(dbPath)) {
   fs.mkdirSync(dbPath, { recursive: true });
 }
 
-if (!fs.existsSync(dbFilePath)) {
-  //   const dbPath = join(VITE_PUBLIC, "template", "db", "kp_link.sqlite");
-  //   fs.copyFileSync(dbPath, dbFilePath);
-  //   const appFilePath = join(app.getPath("userData"), "system", "app");
-  //   if (!fs.existsSync(appFilePath)) {
-  //     fs.mkdirSync(appFilePath, { recursive: true });
-  //   }
-  //   const appPath = join(VITE_PUBLIC, "template", "apps", "index.txt");
-  //   fs.copyFileSync(appPath, join(appFilePath, "index.txt"));
-}
+const userDataPath = app.getPath("userData");
+const idDev = process.env.NODE_ENV === "development";
+const exePath = app.getPath("exe");
+console.log("exePath", exePath);
+const appInstallDir = dirname(exePath);
+const initDataPath = idDev
+  ? join(appInstallDir, "resources", "default_app.asar", "initData")
+  : join(appInstallDir, "resources", "initData");
+console.log("initDataPath", initDataPath);
+console.log("isExist", fs.existsSync(initDataPath));
+// console.log("appInstallDir", appInstallDir);
+// if (!fs.existsSync(dbFilePath)) {
+
+//   const isDev = process.env.NODE_ENV === "development";
+//   if (fs.existsSync(initDataPath)&&!isDev) {
+
+//     fs.copyFileSync(join(initDataPath, "db", "kp_link.sqlite"), dbFilePath);
+
+//     const appFilePath = join(initDataPath, "app");
+//     const targetAppFilePath = join(app.getPath("userData"), "system", "app");
+//     if (!fs.existsSync(targetAppFilePath)) {
+//       fs.mkdirSync(targetAppFilePath, { recursive: true });
+//     }
+
+//   }
+// }
 
 const db = knex({
   client: "sqlite3",
@@ -58,6 +75,7 @@ export const initDatabase = async () => {
         table.string("update_desc").notNullable(); /**app更新描述 */
         table.timestamp("create_at").defaultTo(db.fn.now()); /**创建时间 */
         table.timestamp("update_at").defaultTo(db.fn.now()); /**更新时间 */
+        table.string("local_path"); /**本地路径 */
       });
 
       // 创建触发器，在更新时自动设置 update_at 字段
@@ -69,6 +87,28 @@ export const initDatabase = async () => {
       UPDATE kp_core_app SET update_at = datetime('now', 'localtime') WHERE id = NEW.id;
     END;
   `);
+      const app_id = `KP${+new Date()}`;
+      // 初始化核心应用数据
+      try {
+        const result = await db("kp_core_app").insert({
+          app_id: app_id,
+          name: "linkServer",
+          desc: "编程助手灵魂",
+          icon: "+xmW27d6C8YYTvh9zSyvMLa5iGOfIG3qpt3nHpq3faHE26up8rnXJK72aS416GF8DSO78fc8BJOPEx4UgIr661Kz11m346hbno3F2+vfKlLG/nxno/njcAmPP2nDI9PwCkgAoEXtaN3fZA3b6ltxiHBpnpxvsukbc4KpXLmzNhvE7PK4qt0f85+D0qESpcykPN3HVque/D8LaaWkxjosAqoYXqu5e6SUAAAAASUVORK5CYII=",
+          app_resource: "http://cdn.bilibili.games/linkserver.zip",
+          start_path: "/linkserver.exe",
+          start_type: "exe",
+          version: "0.0.2",
+          update_desc: "linkServer更新",
+          local_path: join(initDataPath, "app", app_id),
+          create_at: db.fn.now(),
+          update_at: db.fn.now(),
+        });
+
+        console.log("6666666666", result);
+      } catch (err) {
+        console.log("err", err);
+      }
     }
 
     const appListTableExists = await db.schema.hasTable("kp_app");
@@ -87,6 +127,7 @@ export const initDatabase = async () => {
         table.string("update_desc").notNullable(); /**app更新描述 */
         table.timestamp("create_at").defaultTo(db.fn.now()); /**创建时间 */
         table.timestamp("update_at").defaultTo(db.fn.now()); /**更新时间 */
+        table.string("local_path"); /**本地路径 */
       });
 
       // 创建触发器，在更新时自动设置 update_at 字段
@@ -161,10 +202,10 @@ export const addSQData = async (tableName: string, data: any) => {
     let result = await db(tableName).insert({
       ...data,
     });
-    // console.log("添加成功",result)
+    console.log("=============>");
     return { code: 101, data: result };
   } catch (error) {
-    // console.log("添加失败",error)
+    console.log("添加失败", error);
     return { code: 102, data: error };
   }
 };
@@ -224,7 +265,6 @@ export const modifySQData = async (
   data: any
 ) => {
   try {
-    console.log(query, data);
     let result = await db(tableName)
       .where({ ...query })
       .update({ ...data });

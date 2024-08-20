@@ -1,4 +1,4 @@
-.main {
+.container {
   width: 100vw;
   height: 100vh;
   background-color: #e6f1ff;
@@ -44,4 +44,35 @@
 .setting:hover {
   transition: all 0.3s;
   transform: scale(1.1);
+}
+
+.layout {
+  border-radius: 8;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  background-color: #e6f1ff !important;
+}
+
+.sider {
+  background-color: #e6f1ff !important;
+}
+
+.menu {
+  height: 100%;
+  background-color: #e6f1ff !important;
+}
+
+/* .ant-menu-item {
+  background-color: blue !important; 
+} */
+
+.ant-menu-item-selected {
+  background-color: red !important;
+  color: white !important; /* 选中的文字颜色 */
+}
+
+content {
+  width: 100%;
+  height: 100%;
 }
