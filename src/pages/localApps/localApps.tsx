@@ -15,13 +15,13 @@ import { Button } from "antd";
 const App: FC = () => {
   const localAppList = useContext(systemContext).localAppList;
   const appRunningStatus = useRef(new Set());
-  // const isRunning = useCallback(
-  //   (id: string) => {
-  //     console.log("==>", appRunningStatus.current.has(id));
-  //     return appRunningStatus.current.has(id);
-  //   },
-  //   [appRunningStatus.current]
-  // );
+  const isRunning = useCallback(
+    (id: string) => {
+      console.log("==>", appRunningStatus.current.has(id));
+      return appRunningStatus.current.has(id);
+    },
+    [appRunningStatus]
+  );
 
   const startApp = (id: string) => {
     window.ipcRenderer.send("kp-system", {
@@ -38,7 +38,7 @@ const App: FC = () => {
       const { id, status } = JSON.parse(arg);
       switch (status) {
         case "running":
-          console.log("running", appRunningStatus.current.has(id));
+          console.log("running", appRunningStatus.current.has);
           if (!appRunningStatus.current.has(id)) {
             appRunningStatus.current.add(id);
           }
@@ -62,23 +62,27 @@ const App: FC = () => {
 
   return (
     <div className={styles.container}>
-      {localAppList.map((item, ind) => {
-        return (
-          <div key={ind} className={styles.appContainer}>
-            <AppItem {...item}>
-              <Button
-                type="primary"
-                onClick={() => startApp(item.app_id)}
-                // disabled={isRunning(item.app_id)}
-                disabled={appRunningStatus.current.has(item.app_id)}
-              >
-                {/* {isRunning(item.app_id) ? "运行中" : "启动"} */}
-                {appRunningStatus.current.has(item.app_id) ? "运行中" : "启动"}
-              </Button>
-            </AppItem>
-          </div>
-        );
-      })}
+      {localAppList.length ? (
+        localAppList.map((item, ind) => {
+          return (
+            <div key={ind} className={styles.appContainer}>
+              <AppItem {...item}>
+                <Button
+                  type="primary"
+                  onClick={() => startApp(item.app_id)}
+                  disabled={isRunning(item.app_id)}
+                >
+                  {isRunning(item.app_id) ? "运行中" : "启动"}
+                </Button>
+              </AppItem>
+            </div>
+          );
+        })
+      ) : (
+        <>
+          <div>没有数据，去下载</div>
+        </>
+      )}
     </div>
   );
 };

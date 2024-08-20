@@ -717,8 +717,35 @@ const getSystemInfo = async (event: Electron.IpcMainEvent) => {
   event.reply("get-system-info-reply", JSON.stringify(systemInfo));
 };
 
+const removeInvalidApp = async () => {
+  const localAppList: any = await getLocalConfig("kp_app");
+  const coreApp: any = await getLocalConfig("kp_core_app");
+  const allAppList: any = [
+    ...localAppList.map((ite: any) => ite.app_id),
+    ...coreApp.map((ite: any) => ite.app_id),
+  ];
+  const localAppPath = path.join(app.getPath("userData"), "system", "app");
+  try {
+    const appList = fs.readdirSync(localAppPath);
+    console.log("allAppList", allAppList);
+    appList.forEach((item) => {
+      console.log("item", item);
+      const appPath = path.join(localAppPath, item);
+      if (!allAppList.includes(item)) {
+        console.log("qaq", appPath);
+        //删除文件夹
+        fsExtra.remove(appPath);
+      }
+    });
+  } catch (err) {
+    console.log("err", err);
+    // fsExtra.ensureDirSync(localAppPath);
+  }
+};
+
 async function createWindow() {
   await initDatabase();
+  await removeInvalidApp();
   win = new BrowserWindow({
     width: VITE_DEV_SERVER_URL ? 1400 : 1200,
     height: 1270,
